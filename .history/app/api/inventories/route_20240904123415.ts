@@ -5,26 +5,9 @@ import { authOptions } from '../auth/[...nextauth]/route';
 
 const prisma = new PrismaClient();
 
-export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const withItems = url.searchParams.get('withItems');
-
+export async function GET() {
   try {
-    let inventories;
-    if (withItems === 'true') {
-      inventories = await prisma.inventory.findMany({
-        where: {
-          itemScrapings: {
-            some: {},
-          },
-        },
-        include: {
-          itemScrapings: true,
-        },
-      });
-    } else {
-      inventories = await prisma.inventory.findMany();
-    }
+    const inventories = await prisma.inventory.findMany();
     return NextResponse.json(inventories);
   } catch (error) {
     console.error('Error fetching inventories:', error);

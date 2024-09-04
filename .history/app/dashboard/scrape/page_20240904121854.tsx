@@ -14,7 +14,6 @@ interface ScrapedItem {
 interface Inventory {
   id: string;
   name: string;
-  itemScrapings: ScrapedItem[];
 }
 
 export default function ScrapePage() {
@@ -25,18 +24,15 @@ export default function ScrapePage() {
   const [error, setError] = useState<string | null>(null);
   const [inventories, setInventories] = useState<Inventory[]>([]);
   const [selectedInventory, setSelectedInventory] = useState<string>('');
-  const [newInventoryName, setNewInventoryName] = useState('');
-  const [selectedInventoryData, setSelectedInventoryData] = useState<ScrapedItem[]>([]);
 
   useEffect(() => {
-    // Fetch inventories with items in the ItemScraping field
+    // Fetch inventories from the database
     const fetchInventories = async () => {
-      const res = await fetch('/api/inventories?withItems=true');
+      const res = await fetch('/api/inventories');
       const data = await res.json();
       setInventories(data);
       if (data.length > 0) {
         setSelectedInventory(data[0].id);
-        setSelectedInventoryData(data[0].itemScrapings);
       }
     };
 
@@ -109,42 +105,6 @@ export default function ScrapePage() {
     setScrapedData(scrapedData.filter((_, i) => i !== index));
   };
 
-  const handleAddInventory = async () => {
-    if (!newInventoryName) {
-      alert('Inventory name is required');
-      return;
-    }
-
-    try {
-      const res = await fetch('/api/inventories', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newInventoryName }),
-      });
-      if (!res.ok) {
-        throw new Error('Failed to create inventory');
-      }
-      const newInventory = await res.json();
-      setInventories([...inventories, newInventory]);
-      setSelectedInventory(newInventory.id);
-      setNewInventoryName('');
-    } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('An unknown error occurred');
-      }
-    }
-  };
-
-  const handleInventorySelect = (inventoryId: string) => {
-    setSelectedInventory(inventoryId);
-    const selectedInventory = inventories.find((inv) => inv.id === inventoryId);
-    if (selectedInventory) {
-      setSelectedInventoryData(selectedInventory.itemScrapings);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center px-4 sm:px-6 lg:px-8">
       <motion.div 
@@ -178,7 +138,7 @@ export default function ScrapePage() {
           />
           <select
             value={selectedInventory}
-            onChange={(e) => handleInventorySelect(e.target.value)}
+            onChange={(e) => setSelectedInventory(e.target.value)}
             className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
           >
             {inventories.map((inventory) => (
@@ -187,21 +147,6 @@ export default function ScrapePage() {
               </option>
             ))}
           </select>
-          <div className="flex space-x-2">
-            <input
-              type="text"
-              value={newInventoryName}
-              onChange={(e) => setNewInventoryName(e.target.value)}
-              placeholder="New Inventory Name"
-              className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-            />
-            <button
-              onClick={handleAddInventory}
-              className="group relative flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-            >
-              Add Inventory
-            </button>
-          </div>
           <button
             onClick={handleScrape}
             className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
@@ -257,39 +202,6 @@ export default function ScrapePage() {
               >
                 Save to Database
               </button>
-            </div>
-          )}
-          {selectedInventoryData.length > 0 && (
-            <div>
-              <h3 className="text-xl font-bold text-white mb-4">Inventory Data</h3>
-              <div className="overflow-x-auto">
-                <table className="min-w-full bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-xl shadow-2xl">
-                  <thead>
-                    <tr>
-                      <th className="px-4 py-2 text-black border">Name</th>
-                      <th className="px-4 py-2 text-black border">Description</th>
-                      <th className="px-4 py-2 text-black border">Quantity</th>
-                      <th className="px-4 py-2 text-black border">Price</th>
-                      <th className="px-4 py-2 text-black border">Source URL</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedInventoryData.map((item, index) => (
-                      <tr key={index}>
-                        <td className="border px-4 py-2 text-black">{item.name}</td>
-                        <td className="border px-4 py-2 text-black">{item.description}</td>
-                        <td className="border px-4 py-2 text-black">{item.quantity}</td>
-                        <td className="border px-4 py-2 text-black">{item.price}</td>
-                        <td className="border px-4 py-2 bg-gray-200">
-                          <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700">
-                            {item.sourceUrl}
-                          </a>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
             </div>
           )}
         </div>

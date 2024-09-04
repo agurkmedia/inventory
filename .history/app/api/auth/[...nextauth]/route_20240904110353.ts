@@ -5,7 +5,7 @@ import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
-export const authOptions = {
+const handler = NextAuth({
   providers: [
     CredentialsProvider({
       name: 'Credentials',
@@ -42,8 +42,6 @@ export const authOptions = {
       return token;
     },
   },
-};
-
-const handler = NextAuth(authOptions);
+});
 
 export { handler as GET, handler as POST };

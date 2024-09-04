@@ -1,11 +1,10 @@
 import NextAuth from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
-export const authOptions = {
+const handler = NextAuth({
   providers: [
     CredentialsProvider({
       name: 'Credentials',
@@ -18,7 +17,7 @@ export const authOptions = {
           where: { email: credentials.email },
         });
 
-        if (user && await bcrypt.compare(credentials.password, user.password)) {
+        if (user && user.password === credentials.password) {
           return user;
         } else {
           return null;
@@ -42,8 +41,6 @@ export const authOptions = {
       return token;
     },
   },
-};
-
-const handler = NextAuth(authOptions);
+});
 
 export { handler as GET, handler as POST };

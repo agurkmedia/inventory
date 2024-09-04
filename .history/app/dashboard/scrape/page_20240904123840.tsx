@@ -29,9 +29,9 @@ export default function ScrapePage() {
   const [selectedInventoryData, setSelectedInventoryData] = useState<ScrapedItem[]>([]);
 
   useEffect(() => {
-    // Fetch inventories with items in the ItemScraping field
+    // Fetch inventories from the database
     const fetchInventories = async () => {
-      const res = await fetch('/api/inventories?withItems=true');
+      const res = await fetch('/api/inventories');
       const data = await res.json();
       setInventories(data);
       if (data.length > 0) {

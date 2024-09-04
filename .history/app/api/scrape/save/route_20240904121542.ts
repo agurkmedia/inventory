@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 
 export async function POST(req: Request) {
   try {
-    const { items, inventoryId } = await req.json();
+    const { items } = await req.json();
     console.log(`Saving ${items.length} items to the database`);
 
     for (const item of items) {
@@ -28,9 +28,6 @@ export async function POST(req: Request) {
             quantity: parseInt(quantity, 10),
             price: parseFloat(price),
             sourceUrl: sourceUrl.toString(),
-            inventory: {
-              connect: { id: inventoryId },
-            },
           },
         });
       } catch (error) {
