@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String      @id @default(cuid())
+  name          String?
+  email         String      @unique
+  password      String
+  inventories   Inventory[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model Inventory {
+  id        String   @id @default(cuid())
+  name      String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  items     Item[]
+  itemScrapings ItemScraping[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+model Item {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  quantity    Int
+  image       Bytes?    // Changed from String? to Bytes?
+  inventoryId String
+  inventory   Inventory @relation(fields: [inventoryId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now()) @updatedAt
+}
+
+model ItemScraping {
+  id            String    @id @default(cuid())
+  name          String
+  description   String?
+  quantity      Int
+  image         Bytes?
+  inventoryId   String
+  inventory     Inventory @relation(fields: [inventoryId], references: [id])
+  productCode   String?
+  price         Float?
+  weight        Float?
+  availability  String?
+  manufacturer  String?
+  attenuation   String?   // Field for yeast attenuation
+  flocculation  String?   // Field for yeast flocculation
+  usageDirections String? // Field for yeast usage directions
+  storageRecommendations String? // Field for yeast storage recommendations
+  desinfisering String?   // Field for additives desinfisering
+  contactTime   String?   // Field for additives contact time
+  sourceUrl     String?   // New field for the source URL
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now()) @updatedAt
+}

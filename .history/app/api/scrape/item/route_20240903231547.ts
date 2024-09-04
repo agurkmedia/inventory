@@ -1,0 +1,63 @@
+import { NextResponse } from 'next/server';
+import * as cheerio from 'cheerio';
+
+export async function POST(req: Request) {
+  try {
+    const { url } = await req.json();
+    console.log(`Scraping item URL: ${url}`);
+
+    if (typeof url !== 'string') {
+      throw new Error(`Invalid URL: ${JSON.stringify(url)}`);
+    }
+
+    const response = await fetch(url);
+    const data = await response.text();
+    const $ = cheerio.load(data);
+
+    const name = $('h1.item-name').text().trim();
+    const description = $('div.item-description').text().trim();
+    const quantity = parseInt($('span.item-quantity').text().trim(), 10);
+    const imageUrl = $('img.item-image').attr('src');
+    const productCode = $('span.item-product-code').text().trim();
+    const price = parseFloat($('span.item-price').text().replace(',-', '').trim());
+    const weight = parseFloat($('span.item-weight').text().replace('kg', '').trim());
+    const availability = $('span.item-availability').text().trim();
+    const manufacturer = $('span.item-manufacturer').text().trim();
+    const attenuation = $('span.item-attenuation').text().trim();
+    const flocculation = $('span.item-flocculation').text().trim();
+    const usageDirections = $('span.item-usage-directions').text().trim();
+    const storageRecommendations = $('span.item-storage-recommendations').text().trim();
+    const desinfisering = $('span.item-desinfisering').text().trim();
+    const contactTime = $('span.item-contact-time').text().trim();
+    const sourceUrl = url;
+
+    if (!name) {
+      throw new Error(`Failed to scrape item details from URL: ${url}`);
+    }
+
+    const item = {
+      name,
+      description,
+      quantity,
+      imageUrl,
+      productCode,
+      price,
+      weight,
+      availability,
+      manufacturer,
+      attenuation,
+      flocculation,
+      usageDirections,
+      storageRecommendations,
+      desinfisering,
+      contactTime,
+      sourceUrl,
+    };
+
+    console.log(`Scraped item: ${name}`);
+    return NextResponse.json(item);
+  } catch (error) {
+    console.error('Error scraping item:', error);
+    return NextResponse.json({ error: 'Failed to scrape item' }, { status: 500 });
+  }
+}
