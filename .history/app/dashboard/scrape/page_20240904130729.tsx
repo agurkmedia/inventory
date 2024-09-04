@@ -37,7 +37,7 @@ export default function ScrapePage() {
       setInventories(data);
       if (data.length > 0) {
         setSelectedInventory(data[0].id);
-        setSelectedInventoryData(data[0].itemScrapings || []);
+        setSelectedInventoryData(data[0].itemScrapings);
       }
     };
 
@@ -143,7 +143,7 @@ export default function ScrapePage() {
     setSelectedInventory(inventoryId);
     const selectedInventory = inventories.find((inv) => inv.id === inventoryId);
     if (selectedInventory) {
-      setSelectedInventoryData(selectedInventory.itemScrapings || []);
+      setSelectedInventoryData(selectedInventory.itemScrapings);
     }
   };
 
@@ -292,7 +292,7 @@ export default function ScrapePage() {
               </button>
             </div>
           )}
-          {selectedInventoryData && selectedInventoryData.length > 0 && (
+          {selectedInventoryData.length > 0 && (
             <div>
               <h3 className="text-xl font-bold text-white mb-4">Inventory Data</h3>
               <div className="overflow-x-auto">

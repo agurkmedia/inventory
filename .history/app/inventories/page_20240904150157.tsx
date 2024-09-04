@@ -1,17 +1,20 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 
 interface Inventory {
   id: string;
   name: string;
+  itemCount: number;
 }
 
 export default function InventoriesPage() {
   const [inventories, setInventories] = useState<Inventory[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     // Fetch all inventories from the database
@@ -36,6 +39,10 @@ export default function InventoriesPage() {
     fetchInventories();
   }, []);
 
+  const handleViewDetails = (inventoryId: string) => {
+    router.push(`/inventories/${inventoryId}`);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center px-4 sm:px-6 lg:px-8">
       <motion.div 
@@ -58,12 +65,23 @@ export default function InventoriesPage() {
               <thead>
                 <tr>
                   <th className="px-4 py-2 text-black border">Inventory Name</th>
+                  <th className="px-4 py-2 text-black border">Item Count</th>
+                  <th className="px-4 py-2 text-black border">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {inventories.map((inventory) => (
                   <tr key={inventory.id}>
                     <td className="border px-4 py-2 text-black">{inventory.name}</td>
+                    <td className="border px-4 py-2 text-black">{inventory.itemCount}</td>
+                    <td className="border px-4 py-2 text-black">
+                      <button
+                        onClick={() => handleViewDetails(inventory.id)}
+                        className="text-blue-500 hover:text-blue-700"
+                      >
+                        View Details
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

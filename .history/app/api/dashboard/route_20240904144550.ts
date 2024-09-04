@@ -15,9 +15,9 @@ export async function GET() {
       },
     });
 
-    const recentActivity = await prisma.itemScraping.findMany({
+    const recentActivity = await prisma.activity.findMany({
       orderBy: {
-        updatedAt: 'desc',
+        createdAt: 'desc',
       },
       take: 10, // Example limit for recent activity
     });
@@ -27,8 +27,8 @@ export async function GET() {
       totalItems,
       lowStockItems,
       recentActivity: recentActivity.map((activity) => ({
-        text: `Updated item: ${activity.name}`,
-        time: activity.updatedAt.toISOString(),
+        text: activity.description,
+        time: activity.createdAt.toISOString(),
       })),
     };
 
