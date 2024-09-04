@@ -1,142 +1,100 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useParams } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { useRouter, useParams } from 'next/navigation';
+import Link from 'next/link';
 
 interface Item {
   id: string;
   name: string;
   description: string;
   quantity: number;
-  image: string;
+  image: string | null;
+  productCode?: string;
+  price?: number;
+  sourceUrl?: string;
 }
 
-interface ItemScraping {
-  id: string;
-  name: string;
-  description: string;
-  quantity: number;
-  price: number;
-  sourceUrl: string;
-  image: string;
-}
-
-export default function InventoryDetailsPage() {
-  const [items, setItems] = useState<Item[]>([]);
-  const [itemScrapings, setItemScrapings] = useState<ItemScraping[]>([]);
-  const [loading, setLoading] = useState(false);
+export default function InventoryDetails() {
+  const [inventory, setInventory] = useState<{ name: string, items: Item[] } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const { id } = useParams();
 
   useEffect(() => {
-    // Fetch items and itemScrapings for the selected inventory
-    const fetchItems = async () => {
-      setLoading(true);
-      setError(null);
+    const fetchInventoryDetails = async () => {
       try {
-        const res = await fetch(`/api/inventories/${id}/items`);
+        console.log('Fetching inventory details for ID:', id);
+        const res = await fetch(`/api/inventories/${id}`);
         if (!res.ok) {
-          throw new Error('Failed to fetch items');
+          const errorData = await res.json();
+          throw new Error(`Failed to fetch inventory details: ${errorData.error || res.statusText}`);
         }
         const data = await res.json();
-        setItems(data.items);
-        setItemScrapings(data.itemScrapings);
+        console.log('Received inventory data:', data);
+        setInventory(data);
       } catch (err) {
-        if (err instanceof Error) {
-          setError(err.message);
-        } else {
-          setError('An unknown error occurred');
-        }
+        console.error('Failed to fetch inventory details:', err);
+        setError(err instanceof Error ? err.message : 'An error occurred');
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     };
 
-    fetchItems();
+    fetchInventoryDetails();
   }, [id]);
 
+  if (isLoading) {
+    return <div className="text-white">Loading...</div>;
+  }
+
+  if (error) {
+    return <div className="text-red-500">Error: {error}</div>;
+  }
+
+  if (!inventory) {
+    return <div className="text-white">Inventory not found</div>;
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center px-4 sm:px-6 lg:px-8">
-      <motion.div 
-        initial={{ x: 300, opacity: 0 }}
-        animate={{ x: 0, opacity: 1 }}
-        exit={{ x: -300, opacity: 0 }}
-        transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-        className="max-w-6xl w-full space-y-8 bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-xl p-8 shadow-2xl"
-      >
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-white">
-            Inventory Details
-          </h2>
-        </div>
-        {loading && <div className="text-white">Loading...</div>}
-        {error && <div className="text-red-500">{error}</div>}
-        {items.length > 0 && (
-          <div className="overflow-x-auto">
-            <h3 className="text-xl font-bold text-white mb-4">Items</h3>
-            <table className="min-w-full bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-xl shadow-2xl">
-              <thead>
-                <tr>
-                  <th className="px-4 py-2 text-black border">Image</th>
-                  <th className="px-4 py-2 text-black border">Name</th>
-                  <th className="px-4 py-2 text-black border">Description</th>
-                  <th className="px-4 py-2 text-black border">Quantity</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item) => (
-                  <tr key={item.id}>
-                    <td className="border px-4 py-2 text-black">
-                      <img src={item.image} alt={item.name} className="w-16 h-16 object-cover" />
-                    </td>
-                    <td className="border px-4 py-2 text-black">{item.name}</td>
-                    <td className="border px-4 py-2 text-black">{item.description}</td>
-                    <td className="border px-4 py-2 text-black">{item.quantity}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold text-high-contrast">{inventory.name}</h1>
+      <div className="bg-card rounded-xl p-6 shadow-xl">
+        <h2 className="text-2xl font-semibold text-high-contrast mb-4">Items in this Inventory</h2>
+        {inventory.items.length === 0 ? (
+          <p className="text-secondary">No items in this inventory yet.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {inventory.items.map(item => (
+              <ItemCard key={item.id} item={item} />
+            ))}
           </div>
         )}
-        {itemScrapings.length > 0 && (
-          <div className="overflow-x-auto mt-8">
-            <h3 className="text-xl font-bold text-white mb-4">Item Scrapings</h3>
-            <table className="min-w-full bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-xl shadow-2xl">
-              <thead>
-                <tr>
-                  <th className="px-4 py-2 text-black border">Image</th>
-                  <th className="px-4 py-2 text-black border">Name</th>
-                  <th className="px-4 py-2 text-black border">Description</th>
-                  <th className="px-4 py-2 text-black border">Quantity</th>
-                  <th className="px-4 py-2 text-black border">Price</th>
-                  <th className="px-4 py-2 text-black border">Source URL</th>
-                </tr>
-              </thead>
-              <tbody>
-                {itemScrapings.map((item) => (
-                  <tr key={item.id}>
-                    <td className="border px-4 py-2 text-black">
-                      <img src={item.image} alt={item.name} className="w-16 h-16 object-cover" />
-                    </td>
-                    <td className="border px-4 py-2 text-black">{item.name}</td>
-                    <td className="border px-4 py-2 text-black">{item.description}</td>
-                    <td className="border px-4 py-2 text-black">{item.quantity}</td>
-                    <td className="border px-4 py-2 text-black">{item.price}</td>
-                    <td className="border px-4 py-2 bg-gray-200">
-                      <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700">
-                        {item.sourceUrl}
-                      </a>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </motion.div>
+        <Link href="/dashboard/inventories" className="link-highlight mt-4 inline-block">
+          ← Back to Inventories
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function ItemCard({ item }: { item: Item }) {
+  return (
+    <div className="bg-card rounded-xl p-6 shadow-xl relative">
+      <h3 className="text-xl font-semibold text-high-contrast mb-2">{item.name}</h3>
+      <p className="text-secondary mb-2">Quantity: {item.quantity}</p>
+      <p className="text-secondary mb-4">{item.description}</p>
+      {item.image && (
+        <img
+          src={`data:image/jpeg;base64,${item.image}`}
+          alt={item.name}
+          className="absolute top-2 right-2 w-16 h-16 object-cover rounded-full border-2 border-white"
+        />
+      )}
+      <Link href={`/dashboard/items/${item.id}`} className="link-highlight">
+        View Details →
+      </Link>
     </div>
   );
 }

@@ -33,7 +33,6 @@ export async function POST(req: Request) {
             },
           },
         });
-        console.log('Item saved successfully:', item.name);
       } catch (error) {
         console.error('Error saving item:', error);
       }

@@ -32,29 +32,14 @@ export async function POST(req: Request) {
     const contactTime = $('span.item-contact-time').text().trim();
     const sourceUrl = url;
 
-    // Download and convert image to base64
-    let image = null;
-    if (imageUrl) {
-      try {
-        const fullImageUrl = new URL(imageUrl, url).href;
-        console.log('Fetching image from:', fullImageUrl);
-        const imageResponse = await axios.get(fullImageUrl, { responseType: 'arraybuffer' });
-        const imageBuffer = Buffer.from(imageResponse.data, 'binary');
-        image = imageBuffer.toString('base64');
-        console.log('Image fetched and converted to base64');
-      } catch (error) {
-        console.error('Error fetching image:', error);
-      }
-    }
-
     const item = {
       name,
       description,
-      quantity: isNaN(quantity) ? 0 : quantity,
-      image,
+      quantity,
+      imageUrl,
       productCode,
-      price: isNaN(price) ? 0 : price,
-      weight: isNaN(weight) ? 0 : weight,
+      price,
+      weight,
       availability,
       manufacturer,
       attenuation,

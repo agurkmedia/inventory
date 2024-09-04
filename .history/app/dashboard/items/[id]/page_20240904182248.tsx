@@ -59,27 +59,20 @@ export default function ItemDetails() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-high-contrast">{item.name}</h1>
-      <div className="bg-card rounded-xl p-6 shadow-xl">
-        <p className="text-secondary mb-2">Description: {item.description}</p>
-        <p className="text-secondary mb-2">Quantity: {item.quantity}</p>
-        <p className="text-secondary mb-2">Inventory: {item.inventoryName}</p>
-        {item.productCode && <p className="text-secondary mb-2">Product Code: {item.productCode}</p>}
-        {item.price && <p className="text-secondary mb-2">Price: ${item.price.toFixed(2)}</p>}
-        {item.sourceUrl && (
-          <p className="text-secondary mb-2">
-            Source: <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer" className="link-highlight">{item.sourceUrl}</a>
-          </p>
-        )}
+      <h1 className="text-3xl font-bold text-white">{item.name}</h1>
+      <div className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-xl p-6 shadow-xl">
+        <p className="text-indigo-200 mb-2">Description: {item.description}</p>
+        <p className="text-indigo-200 mb-2">Quantity: {item.quantity}</p>
+        <p className="text-indigo-200 mb-2">Inventory: {item.inventoryName}</p>
         {item.image && (
           <img
             src={`data:image/jpeg;base64,${item.image}`}
             alt={item.name}
-            className="w-64 h-64 object-cover rounded-lg border-2 border-white mt-4"
+            className="w-64 h-64 object-cover rounded-lg border-2 border-white"
           />
         )}
-        <Link href="/dashboard/items" className="link-highlight mt-4 block">
-          ← Back to Items
+        <Link href="/dashboard/items" className="text-indigo-400 hover:text-indigo-300 mt-4 block">
+          Back to Items
         </Link>
       </div>
     </div>

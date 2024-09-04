@@ -37,11 +37,9 @@ export async function POST(req: Request) {
     if (imageUrl) {
       try {
         const fullImageUrl = new URL(imageUrl, url).href;
-        console.log('Fetching image from:', fullImageUrl);
         const imageResponse = await axios.get(fullImageUrl, { responseType: 'arraybuffer' });
         const imageBuffer = Buffer.from(imageResponse.data, 'binary');
         image = imageBuffer.toString('base64');
-        console.log('Image fetched and converted to base64');
       } catch (error) {
         console.error('Error fetching image:', error);
       }

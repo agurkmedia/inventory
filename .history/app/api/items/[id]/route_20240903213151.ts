@@ -10,34 +10,29 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   }
 
   try {
-    let item = await prisma.item.findUnique({
+    const item = await prisma.item.findUnique({
       where: { id: params.id },
       include: { inventory: true }
     });
 
-    if (!item) {
-      item = await prisma.itemScraping.findUnique({
-        where: { id: params.id },
-        include: { inventory: true }
-      });
+    if (!item || item.inventory.userId !== session.user.id) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    if (!item) {
-      return NextResponse.json({ error: 'Item not found' }, { status: 404 });
-    }
+    console.log('Fetched item details:', item);
 
-    return NextResponse.json({
+    const formattedItem = {
       id: item.id,
       name: item.name,
       description: item.description,
       quantity: item.quantity,
       inventoryName: item.inventory.name,
       inventoryId: item.inventoryId,
-      image: item.image ? item.image.toString('base64') : null,
-      productCode: 'productCode' in item ? item.productCode : null,
-      price: 'price' in item ? item.price : null,
-      sourceUrl: 'sourceUrl' in item ? item.sourceUrl : null,
-    });
+      image: item.image ? item.image.toString('base64') : null, // Convert image to base64 string
+      hasImage: !!item.image
+    };
+
+    return NextResponse.json(formattedItem);
   } catch (error) {
     console.error('Failed to fetch item details:', error);
     return NextResponse.json({ error: 'Failed to fetch item details' }, { status: 500 });
