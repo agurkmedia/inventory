@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 
 export default function Sidebar() {
+  const [hasInventory, setHasInventory] = useState(false);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -12,7 +13,7 @@ export default function Sidebar() {
       try {
         const res = await fetch('/api/dashboard');
         const data = await res.json();
-        // Assuming you might need this data for other purposes
+        setHasInventory(data.totalInventories > 0);
       } catch (err) {
         console.error('Failed to fetch dashboard data:', err);
       }
@@ -21,11 +22,15 @@ export default function Sidebar() {
     fetchDashboardData();
   }, [pathname]); // Re-run effect when pathname changes
 
+  console.log('Sidebar state:', { hasInventory });
+
   return (
     <div className="w-64 bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg min-h-screen p-4">
       <nav className="space-y-2">
         <SidebarLink href="/dashboard" icon={<DashboardIcon />}>Dashboard</SidebarLink>
-        <SidebarLink href="/dashboard/inventories" icon={<InventoryIcon />}>Inventories</SidebarLink>
+        {hasInventory && (
+          <SidebarLink href="/dashboard/inventories" icon={<InventoryIcon />}>Inventories</SidebarLink>
+        )}
         <SidebarLink href="/dashboard/items" icon={<ItemIcon />}>Items</SidebarLink>
         <SidebarLink href="/dashboard/scrape" icon={<ScrapeIcon />}>Web Scraping</SidebarLink>
       </nav>
