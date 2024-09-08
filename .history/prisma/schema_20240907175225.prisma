@@ -1,0 +1,177 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String      @id @default(cuid())
+  name          String?
+  email         String      @unique
+  password      String
+  role          String      @default("user")
+  inventories   Inventory[]
+  attributes    Attribute?
+  incomes       Income[]
+  expenses      Expense[]
+  receipts      Receipt[]   // Relation to receipts
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model Attribute {
+  id        String   @id @default(cuid())
+  features  Json
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Inventory {
+  id            String         @id @default(cuid())
+  name          String
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items         Item[]
+  itemScrapings ItemScraping[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([userId])
+}
+
+model Item {
+  id          String    @id @default(cuid())
+  name        String    // Name of the item (e.g., Milk, Cigarettes)
+  description String?
+  unitPrice   Float     // Price per unit of the item
+  image       Bytes?
+  receiptItems ReceiptItem[] // Items linked to receipts
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now())
+
+  @@index([name])
+}
+
+model ItemScraping {
+  id                     String    @id @default(cuid())
+  name                   String
+  description            String?
+  quantity               Int
+  image                  Bytes?
+  inventoryId            String
+  inventory              Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  productCode            String?
+  price                  Float?
+  weight                 Float?
+  availability           String?
+  manufacturer           String?
+  attenuation            String?
+  flocculation           String?
+  usageDirections        String?
+  storageRecommendations String?
+  desinfisering          String?
+  contactTime            String?
+  sourceUrl              String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  @@index([inventoryId])
+}
+
+model Income {
+  id                 String   @id @default(cuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  source             String
+  amount             Float
+  date               DateTime
+  recurrenceInterval RecurrenceInterval? 
+  recurrenceEnd      DateTime?  
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([userId, date])
+}
+
+model Expense {
+  id                 String   @id @default(cuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId         String
+  category           ExpenseCategory @relation(fields: [categoryId], references: [id])
+  amount             Float
+  description        String?
+  notes              String?
+  date               DateTime
+  startDate          DateTime?
+  isRecurring        Boolean  @default(false)
+  recurrenceInterval RecurrenceInterval?
+  recurrenceEnd      DateTime?
+  status             ExpenseStatus @default(PENDING)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([userId, categoryId, date])
+}
+
+model ExpenseCategory {
+  id            String   @id @default(cuid())
+  name          String
+  expenses      Expense[] 
+  receiptItems  ReceiptItem[] // Relation to items categorized in receipts
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([name])
+}
+
+model Receipt {
+  id           String       @id @default(cuid())
+  userId       String
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  storeName    String       // Store where the purchase was made
+  totalAmount  Float        // Total amount of the receipt
+  receiptItems ReceiptItem[] // List of items purchased
+  date         DateTime     // Date of the receipt
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @default(now())
+
+  @@index([userId, date])
+}
+
+model ReceiptItem {
+  id            String          @id @default(cuid())
+  receiptId     String
+  receipt       Receipt         @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  itemId        String
+  item          Item            @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  quantity      Int             // Quantity purchased (e.g., 2 Milk)
+  totalPrice    Float           // Total price for the quantity (e.g., $19 for 2 Milk)
+  categoryId    String
+  category      ExpenseCategory @relation(fields: [categoryId], references: [id]) // Groceries, etc.
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @default(now())
+
+  @@index([receiptId, itemId, categoryId])
+}
+
+enum RecurrenceInterval {
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum ExpenseStatus {
+  PENDING
+  PAID
+  CANCELED
+}
