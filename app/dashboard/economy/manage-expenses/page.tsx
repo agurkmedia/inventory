@@ -17,7 +17,7 @@ interface Expense {
   notes: string | null;
   date: string;
   isRecurring: boolean;
-  recurrenceInterval: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | null;
+  recurrenceInterval: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY' | null;
   recurrenceEnd: string | null;
   status: 'PENDING' | 'PAID' | 'CANCELLED';
   createdAt: string;
@@ -192,6 +192,7 @@ export default function ManageExpenses() {
                       <option value="DAILY">Daily</option>
                       <option value="WEEKLY">Weekly</option>
                       <option value="MONTHLY">Monthly</option>
+                      <option value="QUARTERLY">Quarterly</option>
                       <option value="YEARLY">Yearly</option>
                     </select>
                     <input

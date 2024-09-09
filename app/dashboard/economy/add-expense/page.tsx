@@ -170,6 +170,7 @@ export default function AddExpense() {
                 <option value="WEEKLY">Weekly</option>
                 <option value="MONTHLY">Monthly</option>
                 <option value="YEARLY">Yearly</option>
+                <option value="QUARTERLY">Quarterly</option> {/* Added Quarterly option */}
               </select>
             </div>
             <div>

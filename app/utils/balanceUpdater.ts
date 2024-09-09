@@ -33,13 +33,6 @@ export async function updateBalances(userId: string, startMonth: Date) {
   let currentMonth = new Date(twoYearsAgo);
   let previousRemainingBalance = 0;
 
-  // Get the earliest balance available for initialization
-  const earliestBalance = await prisma.balance.findFirst({
-    where: { userId, year: twoYearsAgo.getFullYear(), month: twoYearsAgo.getMonth() + 1 },
-    orderBy: { createdAt: 'asc' },
-  });
-
-  previousRemainingBalance = earliestBalance ? roundToTwoDecimals(earliestBalance.startingBalance) : 0;
   console.log(`Initial Previous Remaining Balance: ${previousRemainingBalance}`);
 
   // Process each month sequentially
@@ -49,41 +42,14 @@ export async function updateBalances(userId: string, startMonth: Date) {
 
     console.log(`\nProcessing month: ${month}/${year}`);
 
-    // Retrieve or create the balance for the current month
-    let balance = await prisma.balance.findFirst({
-      where: { userId, year, month },
-    });
-
-    if (!balance) {
-      balance = await prisma.balance.create({
-        data: {
-          userId,
-          year,
-          month,
-          startingBalance: previousRemainingBalance, // Ensure carryover is used here
-          remainingBalance: 0, // Will be updated later
-        },
-      });
-      console.log(`Created balance for ${month}/${year} with Starting Balance: ${previousRemainingBalance}`);
-    } else {
-      // Update starting balance for existing balance to match the previous month's remaining balance
-      if (balance.startingBalance !== previousRemainingBalance) {
-        await prisma.balance.update({
-          where: { id: balance.id },
-          data: { startingBalance: previousRemainingBalance }, // Ensure carryover is applied consistently
-        });
-        console.log(`Updated starting balance for ${month}/${year} to: ${previousRemainingBalance}`);
-      }
-    }
-
     // ---- Calculate incomes ----
     const incomes = await prisma.income.findMany({
       where: {
         userId,
         OR: [
-          { date: { gte: currentMonth, lt: new Date(year, month, 1) } },
+          { date: { gte: currentMonth, lt: new Date(year, month, 1) } }, // One-time income in the current month
           {
-            recurrenceInterval: { not: null },
+            recurrenceInterval: { not: null }, // Recurring income
             OR: [{ recurrenceEnd: null }, { recurrenceEnd: { gte: currentMonth } }],
           },
         ],
@@ -110,9 +76,9 @@ export async function updateBalances(userId: string, startMonth: Date) {
       where: {
         userId,
         OR: [
-          { date: { gte: currentMonth, lt: new Date(year, month, 1) } },
+          { date: { gte: currentMonth, lt: new Date(year, month, 1) } }, // One-time expenses in the current month
           {
-            recurrenceInterval: { not: null },
+            recurrenceInterval: { not: null }, // Recurring expenses
             OR: [{ recurrenceEnd: null }, { recurrenceEnd: { gte: currentMonth } }],
           },
         ],
@@ -154,25 +120,40 @@ export async function updateBalances(userId: string, startMonth: Date) {
     console.log(`Total Receipt Expenses for ${month}/${year}: ${roundToTwoDecimals(totalReceiptExpenses)}`);
 
     // ---- Final Calculation ----
-    console.log(`Starting Balance for ${month}/${year}: ${balance.startingBalance}`);
+    console.log(`Previous Remaining Balance (carryover) for ${month}/${year}: ${previousRemainingBalance}`);
     console.log(`Total Income for ${month}/${year}: ${totalIncome}`);
     console.log(`Total Expenses for ${month}/${year}: ${totalExpenses}`);
     console.log(`Total Receipt Expenses for ${month}/${year}: ${totalReceiptExpenses}`);
 
+    // Calculate remaining balance for the current month
     const remainingBalance = roundToTwoDecimals(
-      balance.startingBalance + totalIncome - totalExpenses - totalReceiptExpenses
+      previousRemainingBalance + totalIncome - totalExpenses - totalReceiptExpenses
     );
     console.log(`Remaining Balance for ${month}/${year}: ${remainingBalance}`);
 
-    // Update the balance for the current month
-    await prisma.balance.update({
-      where: { id: balance.id },
-      data: { remainingBalance },
+    // Force update: ensure the remaining balance is carried over as the next month's starting balance
+    await prisma.balance.upsert({
+      where: {
+        userId_month_year: {
+          userId,
+          month,
+          year,
+        },
+      },
+      update: { startingBalance: previousRemainingBalance, remainingBalance },
+      create: {
+        userId,
+        year,
+        month,
+        startingBalance: previousRemainingBalance,
+        remainingBalance,
+      },
     });
+
+    console.log(`Updated balance for ${month}/${year}. Carry over to next month: ${remainingBalance}`);
 
     // Carry over the remaining balance to the next month
     previousRemainingBalance = remainingBalance;
-    console.log(`Carry over Remaining Balance to next month: ${previousRemainingBalance}`);
 
     // Move to the next month in sequence
     currentMonth.setMonth(currentMonth.getMonth() + 1);

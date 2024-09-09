@@ -45,12 +45,13 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
 
-  if (!session) {
+  if (!session || !session.user || !session.user.id) {
     return NextResponse.json({ error: "Not authorized" }, { status: 401 });
   }
 
   try {
     const { amount, categoryId, description, notes, date, isRecurring, recurrenceInterval, recurrenceEnd, status } = await req.json();
+    
     const expense = await prisma.expense.create({
       data: {
         amount,
@@ -59,7 +60,7 @@ export async function POST(req: Request) {
         notes,
         date: new Date(date),
         isRecurring,
-        recurrenceInterval,
+        recurrenceInterval, // No need to change this line, it will handle "QUARTERLY"
         recurrenceEnd: recurrenceEnd ? new Date(recurrenceEnd) : null,
         status,
         userId: session.user.id,

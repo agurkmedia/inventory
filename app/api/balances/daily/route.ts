@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/authOptions";
 
+// Function to get the next recurrence date
 function getNextRecurrenceDate(date: Date, interval: string | null): Date {
   const newDate = new Date(date);
   switch (interval) {
@@ -23,6 +24,11 @@ function getNextRecurrenceDate(date: Date, interval: string | null): Date {
       break;
   }
   return newDate;
+}
+
+// Function to round values to two decimals
+function roundToTwoDecimals(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 export async function GET(req: Request) {
@@ -60,9 +66,9 @@ export async function GET(req: Request) {
       where: {
         userId: session.user?.id,
         OR: [
-          { date: { gte: startDate, lte: endDate } },
+          { date: { gte: startDate, lte: endDate } }, // One-time income
           { 
-            recurrenceInterval: { not: null },
+            recurrenceInterval: { not: null }, // Recurring income
             OR: [
               { recurrenceEnd: null },
               { recurrenceEnd: { gte: startDate } }
@@ -76,9 +82,9 @@ export async function GET(req: Request) {
       where: {
         userId: session.user?.id,
         OR: [
-          { date: { gte: startDate, lte: endDate } },
+          { date: { gte: startDate, lte: endDate } }, // One-time expenses
           { 
-            recurrenceInterval: { not: null },
+            recurrenceInterval: { not: null }, // Recurring expenses
             OR: [
               { recurrenceEnd: null },
               { recurrenceEnd: { gte: startDate } }
@@ -107,13 +113,14 @@ export async function GET(req: Request) {
     const dailyBalances = [];
     let runningBalance = monthBalance.startingBalance;
 
+    // Process each day in the month
     for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
       const dateString = d.toISOString().split('T')[0];
       
       let dayIncome = 0;
       let dayExpense = 0;
 
-      // Calculate incomes for the day
+      // Calculate daily income
       incomes.forEach(income => {
         if (!income.recurrenceInterval) {
           if (income.date.toISOString().startsWith(dateString)) {
@@ -131,7 +138,7 @@ export async function GET(req: Request) {
         }
       });
 
-      // Calculate expenses for the day
+      // Calculate daily expenses
       expenses.forEach(expense => {
         if (!expense.recurrenceInterval) {
           if (expense.date.toISOString().startsWith(dateString)) {
@@ -142,6 +149,14 @@ export async function GET(req: Request) {
           while (expenseDate <= d) {
             if (expenseDate.toISOString().startsWith(dateString)) {
               dayExpense += expense.amount;
+              // Debug logging for quarterly expenses
+              if (expense.recurrenceInterval === 'MONTHLY') {
+                console.log(`Monthly Expense applied on ${dateString} - Amount: ${expense.amount}`);
+              }
+              
+              if (expense.recurrenceInterval === 'QUARTERLY') {
+                console.log(`Quarterly Expense applied on ${dateString} - Amount: ${expense.amount}`);
+              }
             }
             expenseDate = getNextRecurrenceDate(expenseDate, expense.recurrenceInterval);
             if (expense.recurrenceEnd && expenseDate > expense.recurrenceEnd) break;
@@ -149,13 +164,15 @@ export async function GET(req: Request) {
         }
       });
 
-      // Add receipt expenses for the day
+      // Calculate receipt expenses
       const dayReceiptItems = receiptItems.filter(item => item.receipt.date.toISOString().startsWith(dateString));
       const receiptExpense = dayReceiptItems.reduce((sum, item) => sum + item.totalPrice, 0);
       dayExpense += receiptExpense;
 
+      // Update the running balance
       runningBalance += dayIncome - dayExpense;
 
+      // Push daily balance
       dailyBalances.push({
         date: dateString,
         startingBalance: runningBalance - dayIncome + dayExpense,
