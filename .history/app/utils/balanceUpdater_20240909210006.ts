@@ -1,6 +1,3 @@
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
 
 function getNextRecurrenceDate(date: Date, interval: string | null): Date {
   const newDate = new Date(date);
@@ -25,9 +22,7 @@ function getNextRecurrenceDate(date: Date, interval: string | null): Date {
   }
   return newDate;
 }
-function roundToTwoDecimals(value: number): number {
-  return Math.round(value * 100) / 100;
-}
+
 export async function updateBalances(userId: string, startMonth: Date) {
   const twoYearsAgo = new Date(startMonth.getFullYear() - 2, startMonth.getMonth(), 1);
   const twoYearsFromNow = new Date(startMonth.getFullYear() + 2, startMonth.getMonth(), 0);
