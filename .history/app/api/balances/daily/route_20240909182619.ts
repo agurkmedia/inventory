@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/authOptions";
-import { addDays, addWeeks, addMonths, addYears, isBefore, isAfter, startOfMonth, endOfMonth, isEqual } from 'date-fns';
+import { addDays, addWeeks, addMonths, addYears, isBefore, isAfter, startOfMonth, endOfMonth } from 'date-fns';
 
 // Function to get the next recurrence date using date-fns for safer date manipulation
 function getNextRecurrenceDate(date: Date, interval: string | null): Date {
@@ -116,11 +116,6 @@ export async function GET(req: Request) {
       let dayIncome = 0;
       let dayExpense = 0;
 
-      // Explicitly skip any day before startDate (to ensure we don't process December 31st)
-      if (isBefore(d, startDate)) {
-        continue;
-      }
-
       // Calculate daily income
       incomes.forEach(income => {
         if (!income.recurrenceInterval) {
@@ -132,7 +127,7 @@ export async function GET(req: Request) {
           // Recurring income
           let incomeDate = new Date(income.date);
           while (isBefore(incomeDate, addDays(d, 1))) {
-            if (incomeDate.toISOString().startsWith(dateString) && !isBefore(incomeDate, startDate)) {
+            if (incomeDate.toISOString().startsWith(dateString)) {
               dayIncome += income.amount;
             }
             incomeDate = getNextRecurrenceDate(incomeDate, income.recurrenceInterval);
@@ -152,7 +147,7 @@ export async function GET(req: Request) {
           // Recurring expense
           let expenseDate = new Date(expense.date);
           while (isBefore(expenseDate, addDays(d, 1))) {
-            if (expenseDate.toISOString().startsWith(dateString) && !isBefore(expenseDate, startDate)) {
+            if (expenseDate.toISOString().startsWith(dateString)) {
               dayExpense += expense.amount;
 
               // Debug logging for recurrence intervals
@@ -187,10 +182,7 @@ export async function GET(req: Request) {
       });
     }
 
-    // Explicitly filter out any dates before the startDate (as an additional safeguard)
-    const filteredBalances = dailyBalances.filter((balance) => !isBefore(new Date(balance.date), startDate));
-
-    return NextResponse.json({ monthBalance, dailyBalances: filteredBalances });
+    return NextResponse.json({ monthBalance, dailyBalances });
   } catch (error) {
     console.error('Failed to fetch daily balances:', error);
     return NextResponse.json({ error: 'Failed to fetch daily balances' }, { status: 500 });
