@@ -101,7 +101,7 @@ export default function LoginForm() {
         </form>
         <div className="text-center">
           <Link href="/register" className="font-medium text-indigo-300 hover:text-indigo-200">
-            Don&apos;t have an account? Register
+            Don't have an account? Register
           </Link>
         </div>
       </motion.div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
@@ -38,7 +38,18 @@ export default function ReceiptDetails({ params }: { params: { id: string } }) {
   const router = useRouter();
   const { data: session, status } = useSession();
 
-  const fetchReceipt = useCallback(async () => {
+  useEffect(() => {
+    if (status === 'authenticated') {
+      fetchReceipt();
+      fetchCategories();
+    }
+  }, [status]);
+
+  const calculateTotalAmount = (items: ReceiptItem[]): number => {
+    return items.reduce((total, item) => total + item.totalPrice, 0);
+  };
+
+  const fetchReceipt = async () => {
     try {
       const res = await fetch(`/api/receipts/${params.id}`);
       if (!res.ok) throw new Error('Failed to fetch receipt');
@@ -54,17 +65,6 @@ export default function ReceiptDetails({ params }: { params: { id: string } }) {
       console.error('Failed to fetch receipt:', err);
       setError('Failed to load receipt. Please try again.');
     }
-  }, [params.id]);
-
-  useEffect(() => {
-    if (status === 'authenticated') {
-      fetchReceipt();
-      fetchCategories();
-    }
-  }, [status, fetchReceipt]);
-
-  const calculateTotalAmount = (items: ReceiptItem[]): number => {
-    return items.reduce((total, item) => total + item.totalPrice, 0);
   };
 
   const fetchCategories = async () => {

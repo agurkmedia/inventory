@@ -38,6 +38,17 @@ export default function ReceiptDetails({ params }: { params: { id: string } }) {
   const router = useRouter();
   const { data: session, status } = useSession();
 
+  useEffect(() => {
+    if (status === 'authenticated') {
+      fetchReceipt();
+      fetchCategories();
+    }
+  }, [status, fetchReceipt]); // Add fetchReceipt here
+
+  const calculateTotalAmount = (items: ReceiptItem[]): number => {
+    return items.reduce((total, item) => total + item.totalPrice, 0);
+  };
+
   const fetchReceipt = useCallback(async () => {
     try {
       const res = await fetch(`/api/receipts/${params.id}`);
@@ -54,18 +65,7 @@ export default function ReceiptDetails({ params }: { params: { id: string } }) {
       console.error('Failed to fetch receipt:', err);
       setError('Failed to load receipt. Please try again.');
     }
-  }, [params.id]);
-
-  useEffect(() => {
-    if (status === 'authenticated') {
-      fetchReceipt();
-      fetchCategories();
-    }
-  }, [status, fetchReceipt]);
-
-  const calculateTotalAmount = (items: ReceiptItem[]): number => {
-    return items.reduce((total, item) => total + item.totalPrice, 0);
-  };
+  }, [params.id]); // Add any dependencies fetchReceipt uses
 
   const fetchCategories = async () => {
     try {
