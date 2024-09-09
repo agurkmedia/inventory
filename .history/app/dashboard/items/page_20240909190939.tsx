@@ -146,8 +146,6 @@ export default function Items() {
       if (!res.ok) throw new Error('Failed to fetch inventories');
       const data = await res.json();
       setInventories(data);
-      // Set all inventory IDs as selected by default
-      setSelectedInventories(data.map((inv: Inventory) => inv.id));
     } catch (err) {
       console.error('Failed to fetch inventories:', err);
     }

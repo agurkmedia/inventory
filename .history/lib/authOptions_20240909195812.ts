@@ -44,7 +44,10 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.id as string;
+        session.user = {
+          ...session.user,
+          id: token.id as string
+        };
       }
       return session;
     }
@@ -56,4 +59,3 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
   },
 };
-export default authOptions;

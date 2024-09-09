@@ -1,9 +1,9 @@
-import type { NextAuthOptions } from "next-auth";
+import type { AuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import prisma from "./prisma";
 import { compare } from "bcrypt";
 
-export const authOptions: NextAuthOptions = {
+export const authOptions: AuthOptions = {
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -56,4 +56,5 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
   },
 };
+
 export default authOptions;

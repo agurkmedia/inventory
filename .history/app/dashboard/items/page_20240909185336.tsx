@@ -46,9 +46,6 @@ function ItemCard({ item, onDelete }: { item: Item | ItemScraping, onDelete: (id
     setShowConfirmDelete(false);
   };
 
-  // Check if the item is an ItemScraping
-  const isItemScraping = 'productCode' in item;
-
   return (
     <div className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-lg p-4 shadow-md relative">
       <h3 className="text-lg font-semibold text-white mb-1">{item.name}</h3>
@@ -63,16 +60,10 @@ function ItemCard({ item, onDelete }: { item: Item | ItemScraping, onDelete: (id
         />
       )}
       <div className="flex justify-between items-center mt-2">
-        <Link 
-          href={isItemScraping ? `/dashboard/itemscrapings/${item.id}` : `/dashboard/items/${item.id}`} 
-          className="text-indigo-400 hover:text-indigo-300 text-sm"
-        >
+        <Link href={`/dashboard/items/${item.id}`} className="text-indigo-400 hover:text-indigo-300 text-sm">
           View Details
         </Link>
-        <Link 
-          href={isItemScraping ? `/dashboard/itemscrapings/edit/${item.id}` : `/dashboard/items/edit/${item.id}`} 
-          className="text-yellow-400 hover:text-yellow-300 text-sm"
-        >
+        <Link href={`/dashboard/items/edit/${item.id}`} className="text-yellow-400 hover:text-yellow-300 text-sm">
           Edit
         </Link>
         <button onClick={handleDelete} className="text-red-400 hover:text-red-300 text-sm">
@@ -123,7 +114,7 @@ export default function Items() {
       const res = await fetch('/api/items');
       if (!res.ok) throw new Error('Failed to fetch items');
       const data = await res.json();
-      setItems(data.items);
+      setItems(data);
     } catch (err) {
       console.error('Failed to fetch items:', err);
     }
@@ -146,8 +137,6 @@ export default function Items() {
       if (!res.ok) throw new Error('Failed to fetch inventories');
       const data = await res.json();
       setInventories(data);
-      // Set all inventory IDs as selected by default
-      setSelectedInventories(data.map((inv: Inventory) => inv.id));
     } catch (err) {
       console.error('Failed to fetch inventories:', err);
     }
@@ -261,7 +250,7 @@ export default function Items() {
           <div key={inventoryId} className="mb-8">
             <h2 className="text-xl font-semibold text-white mb-4">{inventoryName}</h2>
             
-            {(displayMode === 'all' || displayMode === 'items') && inventoryItems.length > 0 && (
+            {(displayMode === 'all' || displayMode === 'items') && (
               <div>
                 <h3 className="text-lg font-semibold text-white mb-2">Regular Items</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -272,7 +261,7 @@ export default function Items() {
               </div>
             )}
 
-            {(displayMode === 'all' || displayMode === 'scrapings') && inventoryScrapings.length > 0 && (
+            {(displayMode === 'all' || displayMode === 'scrapings') && (
               <div className="mt-4">
                 <h3 className="text-lg font-semibold text-white mb-2">Scraped Items</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
