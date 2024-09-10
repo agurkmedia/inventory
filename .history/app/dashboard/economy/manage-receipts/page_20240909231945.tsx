@@ -4,20 +4,13 @@ import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { parse } from 'csv-parse/sync';
+import Papa from 'papaparse';
 
 interface Receipt {
   id: string;
   storeName: string;
   totalAmount: number;
   date: string;
-}
-
-interface ParsedReceipt {
-  storeName: string;
-  date: string;
-  totalAmount: number;
-  items: { name: string; quantity: number; price: number }[];
 }
 
 interface ParsedTransaction {
@@ -28,43 +21,51 @@ interface ParsedTransaction {
 
 interface CSVModel {
   name: string;
-  parseFunction: (csvText: string) => ParsedTransaction[];
+  parseFunction: (results: Papa.ParseResult<any>) => ParsedTransaction[];
 }
 
 const DNBModel: CSVModel = {
   name: 'DNB',
-  parseFunction: (csvText: string) => {
-    const records = parse(csvText, {
-      columns: true,
-      skip_empty_lines: true,
-      relaxColumnCount: true,
-      delimiter: [',', ';', '\t'],
-    });
-
-    return records.map((record: any) => ({
-      date: record['Dato'] || record['Date'] || '',
-      description: record['Forklaring'] || record['Description'] || '',
-      amount: parseFloat(record['Beløp'] || record['Amount'] || '0'),
+  parseFunction: (results: Papa.ParseResult<any>) => {
+    return results.data.map((record: any) => ({
+      date: record['Dato'],
+      description: record['Forklaring'],
+      amount: -(parseFloat(record['Ut fra konto'] || '0') - parseFloat(record['Inn på konto'] || '0')),
     }));
   },
 };
 
+const csvModels: CSVModel[] = [DNBModel];
+
 export default function ManageReceipts() {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [parsedTransactions, setParsedTransactions] = useState<ParsedTransaction[]>([]);
+  const [filteredTransactions, setFilteredTransactions] = useState<ParsedTransaction[]>([]);
   const [error, setError] = useState('');
+  const [filterText, setFilterText] = useState('');
+  const [sortColumn, setSortColumn] = useState<'date' | 'description' | 'amount'>('date');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const router = useRouter();
   const { data: session, status } = useSession();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [selectedModel, setSelectedModel] = useState<CSVModel>(DNBModel);
-
-  const csvModels: CSVModel[] = [DNBModel];
 
   useEffect(() => {
     if (status === 'authenticated') {
       fetchReceipts();
     }
   }, [status]);
+
+  useEffect(() => {
+    const filtered = parsedTransactions.filter(transaction =>
+      transaction.description.toLowerCase().includes(filterText.toLowerCase())
+    );
+    const sorted = filtered.sort((a, b) => {
+      if (a[sortColumn] < b[sortColumn]) return sortDirection === 'asc' ? -1 : 1;
+      if (a[sortColumn] > b[sortColumn]) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+    setFilteredTransactions(sorted);
+  }, [parsedTransactions, filterText, sortColumn, sortDirection]);
 
   const fetchReceipts = async () => {
     try {
@@ -78,21 +79,30 @@ export default function ManageReceipts() {
     }
   };
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    try {
-      const text = await file.text();
-      const parsed = selectedModel.parseFunction(text);
-
-      console.log('Parsed transactions:', parsed);
-      setParsedTransactions(parsed);
-      setError('');
-    } catch (err) {
-      console.error('Error parsing file:', err);
-      setError('Failed to parse file. Please check the console for more details.');
-    }
+    Papa.parse(file, {
+      complete: (results) => {
+        try {
+          const parsed = DNBModel.parseFunction(results);
+          console.log('Parsed transactions:', parsed);
+          setParsedTransactions(parsed);
+          setError('');
+        } catch (err) {
+          console.error('Error parsing file:', err);
+          setError('Failed to parse file. Please check the console for more details.');
+        }
+      },
+      header: true,
+      skipEmptyLines: true,
+      delimiter: ';', // Set the delimiter to semicolon for DNB files
+      error: (error) => {
+        console.error('Error parsing CSV:', error);
+        setError('Failed to parse CSV. Please check the file format.');
+      }
+    });
   };
 
   const handleUploadClick = () => {
@@ -143,15 +153,6 @@ export default function ManageReceipts() {
           className="hidden"
           accept=".csv,.txt"
         />
-        <select
-          value={selectedModel.name}
-          onChange={(e) => setSelectedModel(csvModels.find(model => model.name === e.target.value) || DNBModel)}
-          className="bg-gray-800 text-white px-4 py-2 rounded"
-        >
-          {csvModels.map(model => (
-            <option key={model.name} value={model.name}>{model.name}</option>
-          ))}
-        </select>
       </div>
 
       {error && <p className="text-red-500 mt-4">{error}</p>}
@@ -182,31 +183,30 @@ export default function ManageReceipts() {
         </div>
       )}
 
-      {receipts.length > 0 && (
-        <div>
-          <h2 className="text-xl font-semibold text-white mb-4">Receipts</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {receipts.map(receipt => (
-              <div key={receipt.id} className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-lg p-4 shadow-md relative">
-                <h3 className="text-lg font-semibold text-white mb-1">{receipt.storeName}</h3>
-                <p className="text-sm text-indigo-200 mb-1">Total Amount: ${receipt.totalAmount.toFixed(2)}</p>
-                <p className="text-sm text-indigo-200 mb-2">Date: {receipt.date}</p>
-                <div className="flex justify-between items-center mt-2">
-                  <Link href={`/dashboard/economy/receipts/${receipt.id}`} className="text-indigo-400 hover:text-indigo-300 text-sm">
+      <div className="mt-8">
+        <h2 className="text-xl font-semibold text-white mb-4">Your Receipts</h2>
+        {receipts.length === 0 ? (
+          <p className="text-white">No receipts found.</p>
+        ) : (
+          <ul className="space-y-4">
+            {receipts.map((receipt) => (
+              <li key={receipt.id} className="bg-white bg-opacity-10 p-4 rounded-lg">
+                <p className="text-lg font-semibold text-white">{receipt.storeName}</p>
+                <p className="text-sm text-gray-300">Date: {new Date(receipt.date).toLocaleDateString()}</p>
+                <p className="text-sm text-gray-300">Total: ${receipt.totalAmount.toFixed(2)}</p>
+                <div className="mt-2">
+                  <Link href={`/dashboard/economy/receipts/${receipt.id}`} className="text-blue-400 hover:text-blue-300 mr-4">
                     View Details
                   </Link>
-                  <Link href={`/dashboard/economy/receipts/edit/${receipt.id}`} className="text-yellow-400 hover:text-yellow-300 text-sm">
-                    Edit
-                  </Link>
-                  <button onClick={() => handleDeleteReceipt(receipt.id)} className="text-red-400 hover:text-red-300 text-sm">
+                  <button onClick={() => handleDeleteReceipt(receipt.id)} className="text-red-400 hover:text-red-300">
                     Delete
                   </button>
                 </div>
-              </div>
+              </li>
             ))}
-          </div>
-        </div>
-      )}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

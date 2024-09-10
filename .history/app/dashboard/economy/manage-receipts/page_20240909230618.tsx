@@ -28,26 +28,27 @@ interface ParsedTransaction {
 
 interface CSVModel {
   name: string;
-  parseFunction: (csvText: string) => ParsedTransaction[];
+  parseFunction: (text: string) => ParsedTransaction[];
 }
 
 const DNBModel: CSVModel = {
   name: 'DNB',
-  parseFunction: (csvText: string) => {
-    const records = parse(csvText, {
+  parseFunction: (text: string) => {
+    const records = parse(text, {
       columns: true,
       skip_empty_lines: true,
-      relaxColumnCount: true,
-      delimiter: [',', ';', '\t'],
+      delimiter: ';',
     });
 
     return records.map((record: any) => ({
-      date: record['Dato'] || record['Date'] || '',
-      description: record['Forklaring'] || record['Description'] || '',
-      amount: parseFloat(record['Beløp'] || record['Amount'] || '0'),
+      date: record['Dato'],
+      description: record['Forklaring'],
+      amount: -(parseFloat(record['Ut fra konto'] || '0') - parseFloat(record['Inn på konto'] || '0')),
     }));
   },
 };
+
+const csvModels: CSVModel[] = [DNBModel];
 
 export default function ManageReceipts() {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
@@ -56,9 +57,6 @@ export default function ManageReceipts() {
   const router = useRouter();
   const { data: session, status } = useSession();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [selectedModel, setSelectedModel] = useState<CSVModel>(DNBModel);
-
-  const csvModels: CSVModel[] = [DNBModel];
 
   useEffect(() => {
     if (status === 'authenticated') {
@@ -84,7 +82,18 @@ export default function ManageReceipts() {
 
     try {
       const text = await file.text();
-      const parsed = selectedModel.parseFunction(text);
+      const records = parse(text, {
+        columns: true,
+        skip_empty_lines: true,
+        relaxColumnCount: true,
+        delimiter: [',', ';', '\t'], // Accept multiple delimiters
+      });
+
+      const parsed = records.map((record: any) => ({
+        date: record['Dato'] || record['Date'] || '',
+        description: record['Forklaring'] || record['Description'] || '',
+        amount: parseFloat(record['Beløp'] || record['Amount'] || '0'),
+      }));
 
       console.log('Parsed transactions:', parsed);
       setParsedTransactions(parsed);
@@ -93,10 +102,6 @@ export default function ManageReceipts() {
       console.error('Error parsing file:', err);
       setError('Failed to parse file. Please check the console for more details.');
     }
-  };
-
-  const handleUploadClick = () => {
-    fileInputRef.current?.click();
   };
 
   const handleDeleteReceipt = async (id: string) => {
@@ -130,28 +135,10 @@ export default function ManageReceipts() {
         <Link href="/dashboard/economy/add-receipt" className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition duration-150 ease-in-out">
           Add New Receipt
         </Link>
-        <button
-          onClick={handleUploadClick}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition duration-150 ease-in-out"
-        >
+        <label className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition duration-150 ease-in-out cursor-pointer">
           Upload File
-        </button>
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileUpload}
-          className="hidden"
-          accept=".csv,.txt"
-        />
-        <select
-          value={selectedModel.name}
-          onChange={(e) => setSelectedModel(csvModels.find(model => model.name === e.target.value) || DNBModel)}
-          className="bg-gray-800 text-white px-4 py-2 rounded"
-        >
-          {csvModels.map(model => (
-            <option key={model.name} value={model.name}>{model.name}</option>
-          ))}
-        </select>
+          <input type="file" onChange={handleFileUpload} className="hidden" />
+        </label>
       </div>
 
       {error && <p className="text-red-500 mt-4">{error}</p>}
@@ -182,31 +169,30 @@ export default function ManageReceipts() {
         </div>
       )}
 
-      {receipts.length > 0 && (
-        <div>
-          <h2 className="text-xl font-semibold text-white mb-4">Receipts</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {receipts.map(receipt => (
-              <div key={receipt.id} className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-lg p-4 shadow-md relative">
-                <h3 className="text-lg font-semibold text-white mb-1">{receipt.storeName}</h3>
-                <p className="text-sm text-indigo-200 mb-1">Total Amount: ${receipt.totalAmount.toFixed(2)}</p>
-                <p className="text-sm text-indigo-200 mb-2">Date: {receipt.date}</p>
-                <div className="flex justify-between items-center mt-2">
-                  <Link href={`/dashboard/economy/receipts/${receipt.id}`} className="text-indigo-400 hover:text-indigo-300 text-sm">
+      <div className="mt-8">
+        <h2 className="text-xl font-semibold text-white mb-4">Your Receipts</h2>
+        {receipts.length === 0 ? (
+          <p className="text-white">No receipts found.</p>
+        ) : (
+          <ul className="space-y-4">
+            {receipts.map((receipt) => (
+              <li key={receipt.id} className="bg-white bg-opacity-10 p-4 rounded-lg">
+                <p className="text-lg font-semibold text-white">{receipt.storeName}</p>
+                <p className="text-sm text-gray-300">Date: {new Date(receipt.date).toLocaleDateString()}</p>
+                <p className="text-sm text-gray-300">Total: ${receipt.totalAmount.toFixed(2)}</p>
+                <div className="mt-2">
+                  <Link href={`/dashboard/economy/receipts/${receipt.id}`} className="text-blue-400 hover:text-blue-300 mr-4">
                     View Details
                   </Link>
-                  <Link href={`/dashboard/economy/receipts/edit/${receipt.id}`} className="text-yellow-400 hover:text-yellow-300 text-sm">
-                    Edit
-                  </Link>
-                  <button onClick={() => handleDeleteReceipt(receipt.id)} className="text-red-400 hover:text-red-300 text-sm">
+                  <button onClick={() => handleDeleteReceipt(receipt.id)} className="text-red-400 hover:text-red-300">
                     Delete
                   </button>
                 </div>
-              </div>
+              </li>
             ))}
-          </div>
-        </div>
-      )}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

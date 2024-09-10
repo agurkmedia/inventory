@@ -4,75 +4,66 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-interface ParsedTransaction {
+interface ParsedBankImport {
   date: string;
   description: string;
   amount: number;
 }
 
-export default function ImportTransactions() {
-  const [file, setFile] = useState<File | null>(null);
-  const [parsedTransactions, setParsedTransactions] = useState<ParsedTransaction[]>([]);
-  const [error, setError] = useState<string | null>(null);
+export default function ImportBankImports() {
+  const [parsedBankImports, setParsedBankImports] = useState<ParsedBankImport[]>([]);
+  const [error, setError] = useState('');
   const router = useRouter();
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setFile(e.target.files[0]);
-    }
-  };
-
-  const handleUpload = async () => {
-    if (!file) {
-      setError('Please select a file');
-      return;
-    }
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
     const formData = new FormData();
     formData.append('file', file);
 
     try {
-      const response = await fetch('/api/import-transactions', {
+      const response = await fetch('/api/import-bankimports', {
         method: 'POST',
         body: formData,
       });
 
       if (!response.ok) {
-        throw new Error('Failed to upload file');
+        throw new Error('Failed to parse CSV');
       }
 
-      const result = await response.json();
-      setParsedTransactions(result.transactions);
-    } catch (err) {
-      setError('Failed to upload and parse file');
-      console.error(err);
+      const data = await response.json();
+      setParsedBankImports(data.bankImports);
+    } catch (error) {
+      console.error('Error parsing CSV:', error);
+      setError('Failed to parse CSV. Please try again.');
     }
   };
 
-  const handleSaveTransactions = async () => {
+  const handleSaveBankImports = async () => {
     try {
-      const response = await fetch('/api/save-transactions', {
+      const response = await fetch('/api/save-bankimports', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ transactions: parsedTransactions }),
+        body: JSON.stringify({ bankImports: parsedBankImports }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to save transactions');
+        throw new Error('Failed to save bank imports');
       }
 
       router.push('/dashboard/economy');
-    } catch (err) {
-      setError('Failed to save transactions');
-      console.error(err);
+    } catch (error) {
+      console.error('Error saving bank imports:', error);
+      setError('Failed to save bank imports. Please try again.');
     }
   };
 
   return (
     <div className="max-w-4xl mx-auto mt-10">
-      <h1 className="text-2xl font-bold mb-5">Import Transactions</h1>
+      <h1 className="text-2xl font-bold mb-5">Import Bank Imports</h1>
       <div className="mb-5">
         <input 
           type="file" 
@@ -86,16 +77,16 @@ export default function ImportTransactions() {
             hover:file:bg-violet-100"
         />
         <button 
-          onClick={handleUpload} 
+          onClick={handleFileChange} 
           className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
         >
           Upload and Parse CSV
         </button>
       </div>
       {error && <p className="text-red-500 mb-5">{error}</p>}
-      {parsedTransactions.length > 0 && (
+      {parsedBankImports.length > 0 && (
         <div>
-          <h2 className="text-xl font-semibold mb-3">Parsed Transactions</h2>
+          <h2 className="text-xl font-semibold mb-3">Parsed Bank Imports</h2>
           <table className="w-full mb-5">
             <thead>
               <tr>
@@ -105,26 +96,23 @@ export default function ImportTransactions() {
               </tr>
             </thead>
             <tbody>
-              {parsedTransactions.map((transaction, index) => (
+              {parsedBankImports.map((bankImport, index) => (
                 <tr key={index}>
-                  <td>{transaction.date}</td>
-                  <td>{transaction.description}</td>
-                  <td className="text-right">{transaction.amount.toFixed(2)}</td>
+                  <td>{bankImport.date}</td>
+                  <td>{bankImport.description}</td>
+                  <td className="text-right">{bankImport.amount.toFixed(2)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
           <button 
-            onClick={handleSaveTransactions} 
+            onClick={handleSaveBankImports} 
             className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
           >
-            Save Transactions
+            Save Bank Imports
           </button>
         </div>
       )}
-      <Link href="/dashboard/economy" className="block mt-5 text-blue-500">
-        Back to Economy
-      </Link>
     </div>
   );
 }

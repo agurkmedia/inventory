@@ -25,13 +25,13 @@ export async function POST(req: Request) {
       skip_empty_lines: true,
     });
 
-    const transactions = records.map((record: any) => ({
+    const bankImports = records.map((record: any) => ({
       date: record['Dato'],
       description: record['Forklaring'],
       amount: -parseFloat(record['Ut fra konto'] || '0') + parseFloat(record['Inn på konto'] || '0'),
     }));
 
-    return NextResponse.json({ transactions });
+    return NextResponse.json({ bankImports });
   } catch (error) {
     console.error('Failed to parse CSV:', error);
     return NextResponse.json({ error: 'Failed to parse CSV' }, { status: 500 });
