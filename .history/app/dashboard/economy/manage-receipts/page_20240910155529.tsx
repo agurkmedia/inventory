@@ -133,7 +133,7 @@ const keywordMap = {
   'doboz': 'Doboz Transactions',
   'kiraly': 'Kiraly Transactions',
   'aurania gyogyszer': 'Aurania Pharmacy Transactions',
-  
+  'doboz': 'Doboz Transactions',
   
   // Add any more specific or recurring keywords as necessary
 };

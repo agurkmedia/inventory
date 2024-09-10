@@ -49,13 +49,12 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { source, amount, date, isRecurring, recurrenceInterval, recurrenceEnd } = await req.json();
+    const { source, amount, date, recurrenceInterval, recurrenceEnd } = await req.json();
     const income = await prisma.income.create({
       data: {
         source,
         amount,
         date: new Date(date),
-        isRecurring,
         recurrenceInterval: recurrenceInterval || null,
         recurrenceEnd: recurrenceEnd ? new Date(recurrenceEnd) : null,
         userId: session.user?.id,

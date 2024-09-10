@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
-import { Line, Pie, Bar, Doughnut } from 'react-chartjs-2';
+import { Line, PieChart } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -14,8 +14,7 @@ import {
   Tooltip,
   Legend,
   TimeScale,
-  ArcElement,
-  BarElement
+  ArcElement
 } from 'chart.js';
 import 'chartjs-adapter-date-fns';
 
@@ -28,8 +27,7 @@ ChartJS.register(
   Tooltip,
   Legend,
   TimeScale,
-  ArcElement,
-  BarElement
+  ArcElement
 );
 
 interface DailyBalance {
@@ -49,23 +47,9 @@ interface Balance {
 }
 
 interface CategorySummary {
-  incomes: {
-    total: number;
-    breakdown: Array<{
-      source: string;
-      amount: number;
-      date: string;
-    }>;
-  };
-  expenses: {
-    total: number;
-    breakdown: { [category: string]: number };
-  };
-  receipts: {
-    total: number;
-    breakdown: { [category: string]: number };
-  };
-  balance: number;
+  expenses: { [category: string]: number };
+  incomes: { [category: string]: number };
+  receipts: { [category: string]: number };
 }
 
 export default function EconomyAndBudget() {
@@ -76,10 +60,9 @@ export default function EconomyAndBudget() {
   const { data: session, status } = useSession();
   const initializeRef = useRef(false);
   const [categorySummary, setCategorySummary] = useState<CategorySummary>({
-    incomes: { total: 0, breakdown: [] },
-    expenses: { total: 0, breakdown: {} },
-    receipts: { total: 0, breakdown: {} },
-    balance: 0
+    expenses: {},
+    incomes: {},
+    receipts: {}
   });
 
   useEffect(() => {
@@ -175,7 +158,7 @@ export default function EconomyAndBudget() {
       x: { 
         type: 'time' as const,
         time: {
-          unit: 'day' as const,
+          unit: 'day' as const, // Change this line
           displayFormats: {
             day: 'MMM d'
           }
@@ -194,15 +177,14 @@ export default function EconomyAndBudget() {
     }
   };
 
-  const renderPieChart = (data: { [category: string]: number }, title: string, total: number) => {
+  const renderPieChart = (data: { [category: string]: number }, title: string) => {
     const chartData = {
       labels: Object.keys(data),
       datasets: [
         {
           data: Object.values(data),
           backgroundColor: [
-            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40',
-            '#FF9999', '#66B2FF', '#99FF99', '#FFCC99', '#FF99CC', '#99CCFF'
+            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'
           ],
         },
       ],
@@ -217,39 +199,6 @@ export default function EconomyAndBudget() {
         },
         title: {
           display: true,
-          text: `${title} - Total: $${total.toFixed(2)}`,
-          color: 'white',
-          font: { size: 16 }
-        }
-      }
-    };
-
-    return <Pie data={chartData} options={options} />;
-  };
-
-  const renderBarChart = (data: { [category: string]: number }, title: string, color: string) => {
-    const chartData = {
-      labels: Object.keys(data),
-      datasets: [{
-        label: title,
-        data: Object.values(data),
-        backgroundColor: color,
-      }]
-    };
-
-    const options = {
-      responsive: true,
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: { color: 'white' }
-        },
-        x: { ticks: { color: 'white' } }
-      },
-      plugins: {
-        legend: { labels: { color: 'white' } },
-        title: {
-          display: true,
           text: title,
           color: 'white',
           font: { size: 16 }
@@ -257,122 +206,7 @@ export default function EconomyAndBudget() {
       }
     };
 
-    return <Bar data={chartData} options={options} />;
-  };
-
-  const renderDoughnutChart = (data: { [category: string]: number }, title: string) => {
-    const chartData = {
-      labels: Object.keys(data),
-      datasets: [{
-        data: Object.values(data),
-        backgroundColor: [
-          '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40',
-          '#FF9999', '#66B2FF', '#99FF99', '#FFCC99', '#FF99CC', '#99CCFF'
-        ],
-      }]
-    };
-
-    const options = {
-      responsive: true,
-      plugins: {
-        legend: {
-          position: 'right' as const,
-          labels: { color: 'white' }
-        },
-        title: {
-          display: true,
-          text: title,
-          color: 'white',
-          font: { size: 16 }
-        }
-      }
-    };
-
-    return <Doughnut data={chartData} options={options} />;
-  };
-
-  const renderIncomeVsExpenseChart = () => {
-    const chartData = {
-      labels: ['Income', 'Expenses'],
-      datasets: [{
-        label: 'Amount',
-        data: [categorySummary.incomes.total, categorySummary.expenses.total + categorySummary.receipts.total],
-        backgroundColor: ['#4BC0C0', '#FF6384'],
-      }]
-    };
-
-    const options = {
-      responsive: true,
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: { color: 'white' }
-        },
-        x: { ticks: { color: 'white' } }
-      },
-      plugins: {
-        legend: { labels: { color: 'white' } },
-        title: {
-          display: true,
-          text: 'Income vs Expenses',
-          color: 'white',
-          font: { size: 16 }
-        }
-      }
-    };
-
-    return <Bar data={chartData} options={options} />;
-  };
-
-  const renderBalanceStatusChart = () => {
-    const balance = categorySummary.balance;
-    const isPositive = balance >= 0;
-    const chartData = {
-      labels: ['Balance'],
-      datasets: [{
-        label: 'Balance',
-        data: [Math.abs(balance)],
-        backgroundColor: isPositive ? '#4BC0C0' : '#FF6384',
-      }]
-    };
-
-    const options = {
-      responsive: true,
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: { color: 'white' }
-        },
-        x: { ticks: { color: 'white' } }
-      },
-      plugins: {
-        legend: { display: false },
-        title: {
-          display: true,
-          text: `Balance Status: ${isPositive ? 'Green' : 'Red'}`,
-          color: 'white',
-          font: { size: 16 }
-        }
-      }
-    };
-
-    return (
-      <div>
-        <Bar data={chartData} options={options} />
-        <p className="text-white text-center mt-2">
-          {isPositive ? 'In the green by' : 'In the red by'} ${Math.abs(balance).toFixed(2)}
-        </p>
-      </div>
-    );
-  };
-
-  const renderIncomePieChart = () => {
-    const incomeData = categorySummary.incomes.breakdown.reduce((acc, income) => {
-      acc[income.source] = (acc[income.source] || 0) + income.amount;
-      return acc;
-    }, {} as { [source: string]: number });
-
-    return renderPieChart(incomeData, 'Incomes', categorySummary.incomes.total);
+    return <PieChart data={chartData} options={options} />;
   };
 
   if (status === 'loading') {
@@ -418,35 +252,18 @@ export default function EconomyAndBudget() {
         <p className="text-white">Remaining Balance: ${currentMonthBalance?.remainingBalance.toFixed(2) || '0.00'}</p>
       </div>
       
-      {/* Financial Summary Section */}
+      {/* Category Summary Section */}
       <div className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-lg p-4 shadow-md">
-        <h2 className="text-lg font-semibold text-white mb-4">Financial Summary</h2>
-        <p className="text-white mb-2">Overall Balance: ${categorySummary.balance.toFixed(2)}</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <h2 className="text-lg font-semibold text-white mb-4">Category Summary</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="aspect-w-1 aspect-h-1">
-            {renderPieChart(categorySummary.expenses.breakdown, 'Expenses', categorySummary.expenses.total)}
+            {renderPieChart(categorySummary.expenses, 'Expenses')}
           </div>
           <div className="aspect-w-1 aspect-h-1">
-            {renderDoughnutChart(categorySummary.receipts.breakdown, 'Receipts')}
+            {renderPieChart(categorySummary.incomes, 'Incomes')}
           </div>
           <div className="aspect-w-1 aspect-h-1">
-            {renderBarChart(categorySummary.expenses.breakdown, 'Expense Breakdown', '#FF6384')}
-          </div>
-          <div className="aspect-w-1 aspect-h-1">
-            {renderIncomeVsExpenseChart()}
-          </div>
-          <div className="aspect-w-1 aspect-h-1">
-            {renderBalanceStatusChart()}
-          </div>
-          <div className="aspect-w-1 aspect-h-1">
-            {renderBarChart(
-              categorySummary.incomes.breakdown.reduce((acc, income) => {
-                acc[income.source] = (acc[income.source] || 0) + income.amount;
-                return acc;
-              }, {} as { [source: string]: number }),
-              'Income Sources',
-              '#4BC0C0'
-            )}
+            {renderPieChart(categorySummary.receipts, 'Receipts')}
           </div>
         </div>
       </div>

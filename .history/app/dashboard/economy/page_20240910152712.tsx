@@ -14,8 +14,7 @@ import {
   Tooltip,
   Legend,
   TimeScale,
-  ArcElement,
-  BarElement
+  ArcElement
 } from 'chart.js';
 import 'chartjs-adapter-date-fns';
 
@@ -28,8 +27,7 @@ ChartJS.register(
   Tooltip,
   Legend,
   TimeScale,
-  ArcElement,
-  BarElement
+  ArcElement
 );
 
 interface DailyBalance {
@@ -175,7 +173,7 @@ export default function EconomyAndBudget() {
       x: { 
         type: 'time' as const,
         time: {
-          unit: 'day' as const,
+          unit: 'day' as const, // Change this line
           displayFormats: {
             day: 'MMM d'
           }

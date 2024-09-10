@@ -8,8 +8,7 @@ export default function AddIncome() {
   const [source, setSource] = useState('');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState('');
-  const [isRecurring, setIsRecurring] = useState(false);
-  const [recurrenceInterval, setRecurrenceInterval] = useState('');
+  const [recurrenceInterval, setRecurrenceInterval] = useState('NONE');
   const [recurrenceEnd, setRecurrenceEnd] = useState('');
   const [error, setError] = useState('');
   const router = useRouter();
@@ -26,9 +25,8 @@ export default function AddIncome() {
           source,
           amount: parseFloat(amount),
           date,
-          isRecurring,
-          recurrenceInterval: isRecurring ? recurrenceInterval : null,
-          recurrenceEnd: isRecurring && recurrenceEnd ? recurrenceEnd : null,
+          recurrenceInterval: recurrenceInterval === 'NONE' ? null : recurrenceInterval,
+          recurrenceEnd: recurrenceEnd || null,
         }),
       });
 
@@ -93,46 +91,31 @@ export default function AddIncome() {
           />
         </div>
         <div>
-          <label className="flex items-center">
-            <input
-              type="checkbox"
-              checked={isRecurring}
-              onChange={(e) => setIsRecurring(e.target.checked)}
-              className="form-checkbox"
-            />
-            <span className="ml-2">Is this a recurring income?</span>
-          </label>
+          <label htmlFor="recurrenceInterval" className="block text-sm font-medium text-gray-700">Recurrence Interval</label>
+          <select
+            id="recurrenceInterval"
+            value={recurrenceInterval}
+            onChange={(e) => setRecurrenceInterval(e.target.value)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 text-black bg-white"
+          >
+            <option value="NONE">None</option>
+            <option value="DAILY">Daily</option>
+            <option value="WEEKLY">Weekly</option>
+            <option value="MONTHLY">Monthly</option>
+            <option value="YEARLY">Yearly</option>
+          </select>
         </div>
-        {isRecurring && (
-          <>
-            <div>
-              <label htmlFor="recurrenceInterval" className="block text-sm font-medium text-gray-700">Recurrence Interval</label>
-              <select
-                id="recurrenceInterval"
-                value={recurrenceInterval}
-                onChange={(e) => setRecurrenceInterval(e.target.value)}
-                required
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 text-black bg-white"
-              >
-                <option value="">Select interval</option>
-                <option value="DAILY">Daily</option>
-                <option value="WEEKLY">Weekly</option>
-                <option value="MONTHLY">Monthly</option>
-                <option value="QUARTERLY">Quarterly</option>
-                <option value="YEARLY">Yearly</option>
-              </select>
-            </div>
-            <div>
-              <label htmlFor="recurrenceEnd" className="block text-sm font-medium text-gray-700">Recurrence End Date</label>
-              <input
-                type="date"
-                id="recurrenceEnd"
-                value={recurrenceEnd}
-                onChange={(e) => setRecurrenceEnd(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 text-black bg-white"
-              />
-            </div>
-          </>
+        {recurrenceInterval !== 'NONE' && (
+          <div>
+            <label htmlFor="recurrenceEnd" className="block text-sm font-medium text-gray-700">Recurrence End Date</label>
+            <input
+              type="date"
+              id="recurrenceEnd"
+              value={recurrenceEnd}
+              onChange={(e) => setRecurrenceEnd(e.target.value)}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 text-black bg-white"
+            />
+          </div>
         )}
         <button
           type="submit"

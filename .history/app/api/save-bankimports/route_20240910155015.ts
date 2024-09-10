@@ -24,7 +24,7 @@ export async function POST(req: Request) {
             source: bankImport.description, // Assuming 'source' is the field for description in Income
             date: new Date(bankImport.date),
             userId: session.user.id,
-            
+            categoryId: 'default-income-category-id', // You might want to set a default category or let the user choose later
           },
         });
       } else {
