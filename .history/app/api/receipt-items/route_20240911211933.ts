@@ -33,7 +33,7 @@ export async function POST(req: Request) {
           inventoryId,
           quantity: 1, // Default quantity
           price: totalPrice / quantity, // Calculate unit price
-          // Remove the userId field from here
+          userId: session.user.id,
         },
       });
       itemId = newItem.id;

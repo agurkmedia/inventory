@@ -126,9 +126,11 @@ export default function AddReceiptItem({ params }: { params: { id: string } }) {
 
   return (
     <div className="max-w-md mx-auto mt-8 p-6 bg-white rounded-lg shadow-xl">
-      <h1 className="text-2xl font-bold mb-6 text-gray-800">Add Receipt Item</h1>
+      <h1 className="text-2xl font-bold mb-6 text-gray-800">
+        {isEditing ? 'Edit Receipt Item' : 'Add Receipt Item'}
+      </h1>
       {error && <p className="text-red-500 mb-4">{error}</p>}
-      {isSuccess && <p className="text-green-500 mb-4">Item added successfully!</p>}
+      {isSuccess && <p className="text-green-500 mb-4">Item {isEditing ? 'updated' : 'added'} successfully!</p>}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label htmlFor="itemSelect" className="block text-sm font-medium text-gray-700">Select Item</label>

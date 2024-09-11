@@ -9,7 +9,6 @@ interface Item {
   id: string;
   name: string;
   price: number;
-  inventoryId: string;
 }
 
 interface ExpenseCategory {

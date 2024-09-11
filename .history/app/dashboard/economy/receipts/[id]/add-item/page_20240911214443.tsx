@@ -126,9 +126,11 @@ export default function AddReceiptItem({ params }: { params: { id: string } }) {
 
   return (
     <div className="max-w-md mx-auto mt-8 p-6 bg-white rounded-lg shadow-xl">
-      <h1 className="text-2xl font-bold mb-6 text-gray-800">Add Receipt Item</h1>
+      <h1 className="text-2xl font-bold mb-6 text-gray-800">
+        {isEditing ? 'Edit Receipt Item' : 'Add Receipt Item'}
+      </h1>
       {error && <p className="text-red-500 mb-4">{error}</p>}
-      {isSuccess && <p className="text-green-500 mb-4">Item added successfully!</p>}
+      {isSuccess && <p className="text-green-500 mb-4">Item {isEditing ? 'updated' : 'added'} successfully!</p>}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label htmlFor="itemSelect" className="block text-sm font-medium text-gray-700">Select Item</label>
@@ -160,56 +162,29 @@ export default function AddReceiptItem({ params }: { params: { id: string } }) {
           </select>
         </div>
 
-        {isNewItem && (
+        {(isNewItem || isEditing) && (
           <>
             <div>
-              <label htmlFor="newItemName" className="block text-sm font-medium text-gray-700">New Item Name</label>
+              <label htmlFor="itemName" className="block text-sm font-medium text-gray-700">
+                {isNewItem ? 'New Item Name' : 'Edit Item Name'}
+              </label>
               <input
                 type="text"
-                id="newItemName"
-                value={newItemName}
-                onChange={(e) => setNewItemName(e.target.value)}
+                id="itemName"
+                value={isNewItem ? newItemName : editItemName}
+                onChange={(e) => isNewItem ? setNewItemName(e.target.value) : setEditItemName(e.target.value)}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 text-gray-900"
                 required
               />
             </div>
             <div>
-              <label htmlFor="newInventory" className="block text-sm font-medium text-gray-700">New Item Inventory</label>
+              <label htmlFor="inventory" className="block text-sm font-medium text-gray-700">
+                {isNewItem ? 'New Item Inventory' : 'Edit Item Inventory'}
+              </label>
               <select
-                id="newInventory"
-                value={selectedInventoryId}
-                onChange={(e) => setSelectedInventoryId(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 text-gray-900"
-                required
-              >
-                <option value="">Select an inventory</option>
-                {inventories.map((inventory) => (
-                  <option key={inventory.id} value={inventory.id}>{inventory.name}</option>
-                ))}
-              </select>
-            </div>
-          </>
-        )}
-
-        {isEditing && (
-          <>
-            <div>
-              <label htmlFor="editItemName" className="block text-sm font-medium text-gray-700">Edit Item Name</label>
-              <input
-                type="text"
-                id="editItemName"
-                value={editItemName}
-                onChange={(e) => setEditItemName(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 text-gray-900"
-                required
-              />
-            </div>
-            <div>
-              <label htmlFor="editInventory" className="block text-sm font-medium text-gray-700">Edit Item Inventory</label>
-              <select
-                id="editInventory"
-                value={editInventoryId}
-                onChange={(e) => setEditInventoryId(e.target.value)}
+                id="inventory"
+                value={isNewItem ? selectedInventoryId : editInventoryId}
+                onChange={(e) => isNewItem ? setSelectedInventoryId(e.target.value) : setEditInventoryId(e.target.value)}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 text-gray-900"
                 required
               >
@@ -279,7 +254,7 @@ export default function AddReceiptItem({ params }: { params: { id: string } }) {
           className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
           disabled={isSubmitting}
         >
-          {isSubmitting ? 'Adding...' : isEditing ? 'Update Receipt Item' : 'Add Receipt Item'}
+          {isSubmitting ? 'Processing...' : isEditing ? 'Update Receipt Item' : 'Add Receipt Item'}
         </button>
       </form>
       <Link href={`/dashboard/economy/receipts/${params.id}`} className="mt-4 inline-block text-indigo-600 hover:text-indigo-500">

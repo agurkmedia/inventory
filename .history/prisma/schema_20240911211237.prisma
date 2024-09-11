@@ -22,6 +22,7 @@ model User {
   keywordMappings KeywordMapping[] // Relation to keyword mappings
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
+  items       Item[]      // Add this line
 }
 
 model KeywordMapping {
@@ -71,10 +72,13 @@ model Item {
   inventoryId String
   inventory   Inventory @relation(name: "InventoryItems", fields: [inventoryId], references: [id], onDelete: Cascade)
   receiptItems ReceiptItem[] // Items linked to receipts
+  userId      String    // Add this line
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)  // Add this line
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @default(now())
 
   @@index([name])
+  @@index([userId])  // Add this line for better query performance
 }
 
 model ItemScraping {

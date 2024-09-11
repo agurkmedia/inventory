@@ -9,7 +9,6 @@ interface Item {
   id: string;
   name: string;
   price: number;
-  inventoryId: string;
 }
 
 interface ExpenseCategory {
@@ -36,9 +35,6 @@ export default function AddReceiptItem({ params }: { params: { id: string } }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [isNewItem, setIsNewItem] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editItemName, setEditItemName] = useState('');
-  const [editInventoryId, setEditInventoryId] = useState('');
   const router = useRouter();
   const { data: session, status } = useSession();
 
@@ -94,8 +90,6 @@ export default function AddReceiptItem({ params }: { params: { id: string } }) {
     try {
       const itemData = isNewItem
         ? { name: newItemName, inventoryId: selectedInventoryId }
-        : isEditing
-        ? { id: selectedItemId, name: editItemName, inventoryId: editInventoryId }
         : { id: selectedItemId };
 
       const response = await fetch('/api/receipt-items', {
@@ -136,16 +130,12 @@ export default function AddReceiptItem({ params }: { params: { id: string } }) {
             id="itemSelect"
             value={selectedItemId}
             onChange={(e) => {
-              const value = e.target.value;
-              setSelectedItemId(value);
-              setIsNewItem(value === 'new');
-              setIsEditing(value !== '' && value !== 'new');
-              if (value !== 'new' && value !== '') {
-                const selectedItem = items.find(item => item.id === value);
+              setSelectedItemId(e.target.value);
+              setIsNewItem(e.target.value === 'new');
+              if (e.target.value !== 'new') {
+                const selectedItem = items.find(item => item.id === e.target.value);
                 if (selectedItem) {
                   setTotalPrice(selectedItem.price * quantity);
-                  setEditItemName(selectedItem.name);
-                  setEditInventoryId(selectedItem.inventoryId);
                 }
               }
             }}
@@ -174,43 +164,12 @@ export default function AddReceiptItem({ params }: { params: { id: string } }) {
               />
             </div>
             <div>
-              <label htmlFor="newInventory" className="block text-sm font-medium text-gray-700">New Item Inventory</label>
+              <label htmlFor="inventory" className="block text-sm font-medium text-gray-700">Inventory</label>
               <select
-                id="newInventory"
+                id="inventory"
                 value={selectedInventoryId}
                 onChange={(e) => setSelectedInventoryId(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 text-gray-900"
-                required
-              >
-                <option value="">Select an inventory</option>
-                {inventories.map((inventory) => (
-                  <option key={inventory.id} value={inventory.id}>{inventory.name}</option>
-                ))}
-              </select>
-            </div>
-          </>
-        )}
-
-        {isEditing && (
-          <>
-            <div>
-              <label htmlFor="editItemName" className="block text-sm font-medium text-gray-700">Edit Item Name</label>
-              <input
-                type="text"
-                id="editItemName"
-                value={editItemName}
-                onChange={(e) => setEditItemName(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 text-gray-900"
-                required
-              />
-            </div>
-            <div>
-              <label htmlFor="editInventory" className="block text-sm font-medium text-gray-700">Edit Item Inventory</label>
-              <select
-                id="editInventory"
-                value={editInventoryId}
-                onChange={(e) => setEditInventoryId(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 text-gray-900"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
                 required
               >
                 <option value="">Select an inventory</option>
@@ -238,7 +197,7 @@ export default function AddReceiptItem({ params }: { params: { id: string } }) {
                 }
               }
             }}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 text-gray-900"
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
             required
             min="1"
           />
@@ -251,7 +210,7 @@ export default function AddReceiptItem({ params }: { params: { id: string } }) {
             id="totalPrice"
             value={totalPrice}
             onChange={(e) => setTotalPrice(parseFloat(e.target.value))}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 text-gray-900"
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
             required
             step="0.01"
             min="0"
@@ -264,7 +223,7 @@ export default function AddReceiptItem({ params }: { params: { id: string } }) {
             id="category"
             value={categoryId}
             onChange={(e) => setCategoryId(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 text-gray-900"
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
             required
           >
             <option value="">Select a category</option>
@@ -279,7 +238,7 @@ export default function AddReceiptItem({ params }: { params: { id: string } }) {
           className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
           disabled={isSubmitting}
         >
-          {isSubmitting ? 'Adding...' : isEditing ? 'Update Receipt Item' : 'Add Receipt Item'}
+          {isSubmitting ? 'Adding...' : 'Add Receipt Item'}
         </button>
       </form>
       <Link href={`/dashboard/economy/receipts/${params.id}`} className="mt-4 inline-block text-indigo-600 hover:text-indigo-500">

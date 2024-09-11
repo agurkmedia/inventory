@@ -280,6 +280,7 @@ export default function AddReceiptItem({ params }: { params: { id: string } }) {
           disabled={isSubmitting}
         >
           {isSubmitting ? 'Adding...' : isEditing ? 'Update Receipt Item' : 'Add Receipt Item'}
+          {isSubmitting ? 'Adding...' : 'Add Receipt Item'}
         </button>
       </form>
       <Link href={`/dashboard/economy/receipts/${params.id}`} className="mt-4 inline-block text-indigo-600 hover:text-indigo-500">

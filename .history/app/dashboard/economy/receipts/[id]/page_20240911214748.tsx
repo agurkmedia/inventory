@@ -242,6 +242,38 @@ export default function ReceiptDetails({ params }: { params: { id: string } }) {
                     <p><strong>{item.itemName}</strong> - Quantity: {item.quantity}</p>
                     <p>Price: ${item.totalPrice.toFixed(2)} - Category: {item.categoryName}</p>
                     <button onClick={() => handleEditItem(item.id)} className="text-blue-500 mr-2">Edit</button>
+                    <input
+                      type="number"
+                      value={editedQuantity}
+                      onChange={(e) => setEditedQuantity(Number(e.target.value))}
+                      className="w-20 mr-2 p-1 text-black"
+                    />
+                    <input
+                      type="number"
+                      value={editedTotalPrice}
+                      onChange={(e) => setEditedTotalPrice(Number(e.target.value))}
+                      className="w-24 mr-2 p-1 text-black"
+                      step="0.01"
+                    />
+                    <select
+                      value={editedCategoryId}
+                      onChange={(e) => setEditedCategoryId(e.target.value)}
+                      className="w-32 mr-2 p-1 text-black"
+                    >
+                      {categories.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button onClick={() => handleSaveEdit(item.id)} className="bg-green-500 text-white px-2 py-1 rounded mr-2">Save</button>
+                    <button onClick={() => setEditingItem(null)} className="bg-gray-500 text-white px-2 py-1 rounded">Cancel</button>
+                  </div>
+                ) : (
+                  <div>
+                    <p><strong>{item.itemName}</strong> - Quantity: {item.quantity}</p>
+                    <p>Price: ${item.totalPrice.toFixed(2)} - Category: {item.categoryName}</p>
+                    <button onClick={() => handleEditItem(item.id)} className="text-blue-500 mr-2">Edit</button>
                     <button onClick={() => handleDeleteItem(item.id)} className="text-red-500">Delete</button>
                   </div>
                 )}

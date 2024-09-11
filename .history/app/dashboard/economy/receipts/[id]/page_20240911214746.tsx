@@ -234,8 +234,33 @@ export default function ReceiptDetails({ params }: { params: { id: string } }) {
                     </div>
                     <div className="flex justify-end space-x-2">
                       <button onClick={() => handleSaveEdit(item.id)} className="bg-green-500 text-white px-2 py-1 rounded">Save</button>
-                      <button onClick={() => setEditingItem(null)} className="bg-gray-500 text-white px-2 py-1 rounded">Cancel</button>
-                    </div>
+                  <div>
+                    <input
+                      type="number"
+                      value={editedQuantity}
+                      onChange={(e) => setEditedQuantity(Number(e.target.value))}
+                      className="w-20 mr-2 p-1 text-black"
+                    />
+                    <input
+                      type="number"
+                      value={editedTotalPrice}
+                      onChange={(e) => setEditedTotalPrice(Number(e.target.value))}
+                      className="w-24 mr-2 p-1 text-black"
+                      step="0.01"
+                    />
+                    <select
+                      value={editedCategoryId}
+                      onChange={(e) => setEditedCategoryId(e.target.value)}
+                      className="w-32 mr-2 p-1 text-black"
+                    >
+                      {categories.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button onClick={() => handleSaveEdit(item.id)} className="bg-green-500 text-white px-2 py-1 rounded mr-2">Save</button>
+                    <button onClick={() => setEditingItem(null)} className="bg-gray-500 text-white px-2 py-1 rounded">Cancel</button>
                   </div>
                 ) : (
                   <div>

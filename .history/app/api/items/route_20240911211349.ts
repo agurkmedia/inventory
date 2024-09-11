@@ -11,22 +11,8 @@ export async function GET(req: Request) {
 	}
 
 	try {
-		// First, get all inventories belonging to the user
-		const userInventories = await prisma.inventory.findMany({
-			where: { userId: session.user?.id },
-			select: { id: true }
-		});
-
-		// Then, find all items in these inventories
 		const items = await prisma.item.findMany({
-			where: {
-				inventoryId: {
-					in: userInventories.map(inv => inv.id)
-				}
-			},
-			include: {
-				inventory: true
-			}
+			where: { userId: session.user?.id },
 		});
 
 		return NextResponse.json(items);

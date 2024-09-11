@@ -213,41 +213,6 @@ export default function ManageReceipts() {
 
       {error && <p className="text-red-500 mt-4">{error}</p>}
 
-      <div className="mt-8">
-        <h2 className="text-xl font-semibold text-white mb-4">Keyword Mappings</h2>
-        {keywordMappings.length === 0 ? (
-          <p className="text-white">No keyword mappings found.</p>
-        ) : (
-          <ul className="space-y-2">
-            {keywordMappings.map((mapping) => (
-              <li key={mapping.id} className="text-white">
-                {mapping.keyword}: {mapping.description}
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <form onSubmit={handleAddKeywordMapping} className="mt-4 space-y-2">
-          <input
-            type="text"
-            value={newKeyword}
-            onChange={(e) => setNewKeyword(e.target.value)}
-            placeholder="New keyword"
-            className="bg-gray-700 text-white px-3 py-2 rounded"
-          />
-          <input
-            type="text"
-            value={newDescription}
-            onChange={(e) => setNewDescription(e.target.value)}
-            placeholder="Description"
-            className="bg-gray-700 text-white px-3 py-2 rounded ml-2"
-          />
-          <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded ml-2">
-            Add Mapping
-          </button>
-        </form>
-      </div>
-
       {Object.keys(groupedTransactions).length > 0 && (
         <div className="mt-8">
           <h2 className="text-xl font-semibold text-white mb-4">Grouped Transactions</h2>

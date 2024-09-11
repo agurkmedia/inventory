@@ -43,7 +43,7 @@ const DNBModel: CSVModel = {
 
 const groupTransactionsByKeyword = (transactions: ParsedTransaction[], keywordMap: { [key: string]: string }) => {
   return transactions.reduce((groups: any, transaction) => {
-    let groupKey = 'Other';
+    let groupKey = 'Other'; // Default group for ungrouped items
     for (const keyword in keywordMap) {
       if (transaction.description.toLowerCase().includes(keyword.toLowerCase())) {
         groupKey = keywordMap[keyword];
@@ -66,6 +66,84 @@ const groupTransactionsByKeyword = (transactions: ParsedTransaction[], keywordMa
   }, {});
 };
 
+const keywordMap = {
+  'bunnpris': 'Bunnpris Transactions',
+  'spotify': 'Spotify Transactions',
+  'tesla': 'Tesla Transactions',
+  'norsk tipping': 'Norsk Tipping Transactions',
+  'Dina Merete Stupforsmo Betaling': 'Dina Merete Stupforsmo',
+  'Lise Merete Henriksen': 'Lise Merete Henriksen',
+  'Kiwi': 'Kiwi',
+  'No3': 'Byliv',
+  'Onkel Oskar': 'Byliv',
+  'netflix': 'Netflix Transactions',
+  'revolut': 'Revolut Transactions',
+  'dropbox': 'Dropbox Transactions',
+  'helgeland bilse': 'Helgeland Bilservice Transactions',
+  'focus dental': 'Focus Dental Transactions',
+  'momek services': 'Salary Momek Services',
+  'verkt musikkfe': 'Verket Music Festival Transactions',
+  'mo i rana grill': 'Mo i Rana Grill Transactions',
+  'taxi': 'Taxi Transactions',
+  'rema': 'Rema Transactions',
+  'extra': 'Extra Transactions',
+  'systembolaget': 'Systembolaget Transactions',
+  'mcd': 'McDonald\'s Transactions',
+  'circle k': 'Circle K Transactions',
+  'first camp': 'First Camp Transactions',
+  'coop alta': 'Coop Alta Transactions',
+  'hotelcom': 'Hotel.com Transactions',
+  'apotek1': 'Apotek1 Transactions',
+  'unike frisør': 'Unik Frisør Transactions',
+  'medieboost': 'Medieboost Transactions',
+  'eva kristianne pedersen': 'Eva Kristianne Pedersen Transactions',
+  'natalie merete stupforsmo': 'Natalie Merete Stupforsmo Transactions',
+  'lasse stupforsmo': 'Lasse Stupforsmo Transactions',
+  'mads stupforsmo': 'Mads Stupforsmo Transactions',
+  'oliver precht': 'Oliver Precht Transactions',
+  'daniel andre kjørstad almli': 'Daniel Andre Kjørstad Almli Transactions',
+  'silja samuelsen': 'Silja Samuelsen Transactions',
+  'kjell inge stupforsmo': 'Kjell Inge Stupforsmo Transactions',
+  'hunderfossen': 'Hunderfossen Transactions',
+  'great eastern': 'Great Eastern Transactions',
+  
+  // Newly added based on the additional transactions provided
+  'overføring mobilbank': 'Mobile Bank Transfers',
+  'kontoregulering': 'Account Regulation Transactions', // General group for "Kontoregulering"
+  'prislagte tjenester': 'Priced Services',
+  'verkt musikkfe': 'Verket Music Festival Transactions',
+  'tb-j mo i rana as': 'TB-J Mo i Rana Transactions',
+  'aleri helse': 'Aleris Helse Transactions',
+  'mirabella malvaceae': 'Mirabella Malvaceae Donations',
+  'trondheim kommune': 'Trondheim Kommune Payments',
+  'stian isaksen': 'Stian Isaksen Transactions',
+  'peppes pizz': 'Peppes Pizza Transactions',
+  'ritazza': 'Ritazza Transactions',
+  'hmshost_norway': 'HMSHost Norway Transactions',
+  'sport outlet': 'Sport Outlet Transactions',
+  'biltema': 'Biltema Transactions',
+  'plantasjen': 'Plantasjen Transactions',
+  'goulash museum': 'Goulash Museum Transactions',
+  'buzzvoice': 'Buzzvoice Transactions',
+  'sumup': 'Sumup Transactions',
+  'viatortripadvisor': 'Viator TripAdvisor Transactions',
+  'nemzeti doha\'nybo': 'Nemzeti Tobacco Shop Transactions',
+  'pizza me': 'Pizza Me Transactions',
+  'deep burg': 'Deep Burg Transactions',
+  'meatology': 'Meatology Transactions',
+  'helopay': 'Helopay Transactions',
+  'urania gyogyszer': 'Urania Pharmacy Transactions',
+  'var-archivum kft': 'Var-archivum Kft Transactions',
+  'madenta fogaszati': 'Madenta Dental Clinic Transactions',
+  'doboz': 'Doboz Transactions',
+  'kiraly': 'Kiraly Transactions',
+  'aurania gyogyszer': 'Aurania Pharmacy Transactions',
+  'doboz': 'Doboz Transactions',
+  
+  // Add any more specific or recurring keywords as necessary
+};
+
+
 const csvModels: CSVModel[] = [DNBModel];
 
 export default function ManageReceipts() {
@@ -76,14 +154,10 @@ export default function ManageReceipts() {
   const router = useRouter();
   const { data: session, status } = useSession();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [keywordMappings, setKeywordMappings] = useState<KeywordMapping[]>([]);
-  const [newKeyword, setNewKeyword] = useState('');
-  const [newDescription, setNewDescription] = useState('');
 
   useEffect(() => {
     if (status === 'authenticated') {
       fetchReceipts();
-      fetchKeywordMappings();
     }
   }, [status]);
 
@@ -99,36 +173,6 @@ export default function ManageReceipts() {
     }
   };
 
-  const fetchKeywordMappings = async () => {
-    try {
-      const res = await fetch('/api/keyword-mappings');
-      if (!res.ok) throw new Error('Failed to fetch keyword mappings');
-      const data = await res.json();
-      setKeywordMappings(data);
-    } catch (err) {
-      console.error('Failed to fetch keyword mappings:', err);
-      setError('Failed to load keyword mappings. Please try again.');
-    }
-  };
-
-  const handleAddKeywordMapping = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const res = await fetch('/api/keyword-mappings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keyword: newKeyword, description: newDescription }),
-      });
-      if (!res.ok) throw new Error('Failed to add keyword mapping');
-      fetchKeywordMappings();
-      setNewKeyword('');
-      setNewDescription('');
-    } catch (err) {
-      console.error('Failed to add keyword mapping:', err);
-      setError('Failed to add keyword mapping. Please try again.');
-    }
-  };
-
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -138,10 +182,6 @@ export default function ManageReceipts() {
         try {
           const parsed = DNBModel.parseFunction(results);
           console.log('Parsed transactions:', parsed);
-          const keywordMap = keywordMappings.reduce((acc, mapping) => {
-            acc[mapping.keyword] = mapping.description;
-            return acc;
-          }, {} as { [key: string]: string });
           const grouped = groupTransactionsByKeyword(parsed, keywordMap);
           setParsedTransactions(parsed);
           setGroupedTransactions(grouped);
@@ -212,41 +252,6 @@ export default function ManageReceipts() {
       </div>
 
       {error && <p className="text-red-500 mt-4">{error}</p>}
-
-      <div className="mt-8">
-        <h2 className="text-xl font-semibold text-white mb-4">Keyword Mappings</h2>
-        {keywordMappings.length === 0 ? (
-          <p className="text-white">No keyword mappings found.</p>
-        ) : (
-          <ul className="space-y-2">
-            {keywordMappings.map((mapping) => (
-              <li key={mapping.id} className="text-white">
-                {mapping.keyword}: {mapping.description}
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <form onSubmit={handleAddKeywordMapping} className="mt-4 space-y-2">
-          <input
-            type="text"
-            value={newKeyword}
-            onChange={(e) => setNewKeyword(e.target.value)}
-            placeholder="New keyword"
-            className="bg-gray-700 text-white px-3 py-2 rounded"
-          />
-          <input
-            type="text"
-            value={newDescription}
-            onChange={(e) => setNewDescription(e.target.value)}
-            placeholder="Description"
-            className="bg-gray-700 text-white px-3 py-2 rounded ml-2"
-          />
-          <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded ml-2">
-            Add Mapping
-          </button>
-        </form>
-      </div>
 
       {Object.keys(groupedTransactions).length > 0 && (
         <div className="mt-8">

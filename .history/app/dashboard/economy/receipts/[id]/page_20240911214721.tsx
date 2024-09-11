@@ -83,18 +83,6 @@ export default function ReceiptDetails({ params }: { params: { id: string } }) {
     }
   };
 
-  const fetchInventories = async () => {
-    try {
-      const res = await fetch('/api/inventories');
-      if (!res.ok) throw new Error('Failed to fetch inventories');
-      const data = await res.json();
-      setInventories(data);
-    } catch (err) {
-      console.error('Failed to fetch inventories:', err);
-      setError('Failed to load inventories. Please try again.');
-    }
-  };
-
   const handleEditItem = (itemId: string) => {
     const item = receipt?.items.find(i => i.id === itemId);
     if (item) {
@@ -102,8 +90,6 @@ export default function ReceiptDetails({ params }: { params: { id: string } }) {
       setEditedQuantity(item.quantity);
       setEditedTotalPrice(item.totalPrice);
       setEditedCategoryId(item.categoryId);
-      setEditItemName(item.itemName);
-      setEditInventoryId(item.inventoryId || '');
     }
   };
 
@@ -116,8 +102,6 @@ export default function ReceiptDetails({ params }: { params: { id: string } }) {
           quantity: editedQuantity,
           totalPrice: editedTotalPrice,
           categoryId: editedCategoryId,
-          itemName: editItemName,
-          inventoryId: editInventoryId,
         }),
       });
 
@@ -171,71 +155,33 @@ export default function ReceiptDetails({ params }: { params: { id: string } }) {
             {receipt.items.map((item) => (
               <li key={item.id} className="bg-white bg-opacity-5 p-3 rounded">
                 {editingItem === item.id ? (
-                  <div className="space-y-2">
-                    <div>
-                      <label htmlFor="editItemName" className="block text-sm font-medium text-gray-300">Item Name</label>
-                      <input
-                        id="editItemName"
-                        type="text"
-                        value={editItemName}
-                        onChange={(e) => setEditItemName(e.target.value)}
-                        className="w-full mr-2 p-1 text-black"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="editInventory" className="block text-sm font-medium text-gray-300">Inventory</label>
-                      <select
-                        id="editInventory"
-                        value={editInventoryId}
-                        onChange={(e) => setEditInventoryId(e.target.value)}
-                        className="w-full mr-2 p-1 text-black"
-                      >
-                        <option value="">Select an inventory</option>
-                        {inventories.map((inventory) => (
-                          <option key={inventory.id} value={inventory.id}>{inventory.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label htmlFor="editQuantity" className="block text-sm font-medium text-gray-300">Quantity</label>
-                      <input
-                        id="editQuantity"
-                        type="number"
-                        value={editedQuantity}
-                        onChange={(e) => setEditedQuantity(Number(e.target.value))}
-                        className="w-full mr-2 p-1 text-black"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="editTotalPrice" className="block text-sm font-medium text-gray-300">Total Price</label>
-                      <input
-                        id="editTotalPrice"
-                        type="number"
-                        value={editedTotalPrice}
-                        onChange={(e) => setEditedTotalPrice(Number(e.target.value))}
-                        className="w-full mr-2 p-1 text-black"
-                        step="0.01"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="editCategory" className="block text-sm font-medium text-gray-300">Category</label>
-                      <select
-                        id="editCategory"
-                        value={editedCategoryId}
-                        onChange={(e) => setEditedCategoryId(e.target.value)}
-                        className="w-full mr-2 p-1 text-black"
-                      >
-                        {categories.map((category) => (
-                          <option key={category.id} value={category.id}>
-                            {category.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="flex justify-end space-x-2">
-                      <button onClick={() => handleSaveEdit(item.id)} className="bg-green-500 text-white px-2 py-1 rounded">Save</button>
-                      <button onClick={() => setEditingItem(null)} className="bg-gray-500 text-white px-2 py-1 rounded">Cancel</button>
-                    </div>
+                  <div>
+                    <input
+                      type="number"
+                      value={editedQuantity}
+                      onChange={(e) => setEditedQuantity(Number(e.target.value))}
+                      className="w-20 mr-2 p-1 text-black"
+                    />
+                    <input
+                      type="number"
+                      value={editedTotalPrice}
+                      onChange={(e) => setEditedTotalPrice(Number(e.target.value))}
+                      className="w-24 mr-2 p-1 text-black"
+                      step="0.01"
+                    />
+                    <select
+                      value={editedCategoryId}
+                      onChange={(e) => setEditedCategoryId(e.target.value)}
+                      className="w-32 mr-2 p-1 text-black"
+                    >
+                      {categories.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button onClick={() => handleSaveEdit(item.id)} className="bg-green-500 text-white px-2 py-1 rounded mr-2">Save</button>
+                    <button onClick={() => setEditingItem(null)} className="bg-gray-500 text-white px-2 py-1 rounded">Cancel</button>
                   </div>
                 ) : (
                   <div>
