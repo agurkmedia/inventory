@@ -256,7 +256,7 @@ export default function Items() {
         <div key={inventory.id} className="mb-8">
           <h2 className="text-xl font-semibold text-white mb-4">{inventory.name}</h2>
           
-          {(displayMode === 'all' || displayMode === 'items') && inventory.items && inventory.items.length > 0 && (
+          {(displayMode === 'all' || displayMode === 'items') && inventory.items.length > 0 && (
             <div>
               <h3 className="text-lg font-semibold text-white mb-2">Regular Items</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -267,11 +267,11 @@ export default function Items() {
             </div>
           )}
 
-          {displayMode === 'all' && inventory.items && inventory.items.length > 0 && inventory.itemScrapings && inventory.itemScrapings.length > 0 && (
+          {displayMode === 'all' && inventory.items.length > 0 && inventory.itemScrapings.length > 0 && (
             <hr className="border-t border-indigo-300 my-4" />
           )}
 
-          {(displayMode === 'all' || displayMode === 'scrapings') && inventory.itemScrapings && inventory.itemScrapings.length > 0 && (
+          {(displayMode === 'all' || displayMode === 'scrapings') && inventory.itemScrapings.length > 0 && (
             <div>
               <h3 className="text-lg font-semibold text-white mb-2">Scraped Items</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -282,7 +282,7 @@ export default function Items() {
             </div>
           )}
 
-          {(!inventory.items || inventory.items.length === 0) && (!inventory.itemScrapings || inventory.itemScrapings.length === 0) && (
+          {inventory.items.length === 0 && inventory.itemScrapings.length === 0 && (
             <p className="text-white">No items in this inventory.</p>
           )}
         </div>

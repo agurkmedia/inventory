@@ -25,8 +25,8 @@ interface ItemScraping {
 interface Inventory {
   id: string;
   name: string;
-  items: Item[];
-  itemScrapings: ItemScraping[];
+  items?: Item[];
+  itemScrapings?: ItemScraping[];
 }
 
 function ItemCard({ item, onDelete }: { item: Item, onDelete: (id: string) => void }) {
@@ -151,7 +151,7 @@ export default function Items() {
 
   const fetchInventories = async () => {
     try {
-      const res = await fetch('/api/inventories-with-items');
+      const res = await fetch('/api/inventories');
       if (!res.ok) throw new Error('Failed to fetch inventories');
       const data = await res.json();
       setInventories(data);
@@ -267,9 +267,7 @@ export default function Items() {
             </div>
           )}
 
-          {displayMode === 'all' && inventory.items && inventory.items.length > 0 && inventory.itemScrapings && inventory.itemScrapings.length > 0 && (
-            <hr className="border-t border-indigo-300 my-4" />
-          )}
+          {displayMode === 'all' && <hr className="border-t border-indigo-300 my-4" />}
 
           {(displayMode === 'all' || displayMode === 'scrapings') && inventory.itemScrapings && inventory.itemScrapings.length > 0 && (
             <div>
@@ -280,10 +278,6 @@ export default function Items() {
                 ))}
               </div>
             </div>
-          )}
-
-          {(!inventory.items || inventory.items.length === 0) && (!inventory.itemScrapings || inventory.itemScrapings.length === 0) && (
-            <p className="text-white">No items in this inventory.</p>
           )}
         </div>
       ))}

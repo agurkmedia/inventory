@@ -9,15 +9,7 @@ interface Item {
   name: string;
   quantity: number;
   price: number;
-  inventoryId: string;
-  image: string | null;
-}
-
-interface ItemScraping {
-  id: string;
-  name: string;
-  quantity: number;
-  price: number | null;
+  inventoryName: string;
   inventoryId: string;
   image: string | null;
 }
@@ -25,8 +17,6 @@ interface ItemScraping {
 interface Inventory {
   id: string;
   name: string;
-  items: Item[];
-  itemScrapings: ItemScraping[];
 }
 
 function ItemCard({ item, onDelete }: { item: Item, onDelete: (id: string) => void }) {
@@ -46,6 +36,7 @@ function ItemCard({ item, onDelete }: { item: Item, onDelete: (id: string) => vo
       <h3 className="text-lg font-semibold text-white mb-1">{item.name}</h3>
       <p className="text-sm text-indigo-200 mb-1">Quantity: {item.quantity}</p>
       <p className="text-sm text-indigo-200 mb-1">Price: ${item.price.toFixed(2)}</p>
+      <p className="text-sm text-indigo-200 mb-2">Inventory: {item.inventoryName}</p>
       {item.image && (
         <img
           src={`data:image/jpeg;base64,${item.image}`}
@@ -79,7 +70,7 @@ function ItemCard({ item, onDelete }: { item: Item, onDelete: (id: string) => vo
   );
 }
 
-function ItemScrapingCard({ item, onDelete }: { item: ItemScraping, onDelete: (id: string) => void }) {
+function ItemScrapingCard({ item, onDelete }: { item: Item, onDelete: (id: string) => void }) {
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
 
   const handleDelete = () => {
@@ -95,7 +86,8 @@ function ItemScrapingCard({ item, onDelete }: { item: ItemScraping, onDelete: (i
     <div className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-lg p-4 shadow-md relative">
       <h3 className="text-lg font-semibold text-white mb-1">{item.name}</h3>
       <p className="text-sm text-indigo-200 mb-1">Quantity: {item.quantity}</p>
-      <p className="text-sm text-indigo-200 mb-1">Price: ${item.price?.toFixed(2) || 'N/A'}</p>
+      <p className="text-sm text-indigo-200 mb-1">Price: ${item.price.toFixed(2)}</p>
+      <p className="text-sm text-indigo-200 mb-2">Inventory: {item.inventoryName}</p>
       {item.image && (
         <img
           src={`data:image/jpeg;base64,${item.image}`}
@@ -138,6 +130,8 @@ function NewItemCard() {
 }
 
 export default function Items() {
+  const [items, setItems] = useState<Item[]>([]);
+  const [itemScrapings, setItemScrapings] = useState<Item[]>([]);
   const [inventories, setInventories] = useState<Inventory[]>([]);
   const [displayMode, setDisplayMode] = useState<'all' | 'items' | 'scrapings'>('all');
   const [selectedInventories, setSelectedInventories] = useState<string[]>([]);
@@ -145,16 +139,30 @@ export default function Items() {
 
   useEffect(() => {
     if (status === 'authenticated') {
+      fetchItems();
       fetchInventories();
     }
   }, [status]);
 
+  const fetchItems = async () => {
+    try {
+      const res = await fetch('/api/items');
+      if (!res.ok) throw new Error('Failed to fetch items');
+      const data = await res.json();
+      setItems(data.items);
+      setItemScrapings(data.itemScrapings);
+    } catch (err) {
+      console.error('Failed to fetch items:', err);
+    }
+  };
+
   const fetchInventories = async () => {
     try {
-      const res = await fetch('/api/inventories-with-items');
+      const res = await fetch('/api/inventories');
       if (!res.ok) throw new Error('Failed to fetch inventories');
       const data = await res.json();
       setInventories(data);
+      // Select all inventories by default
       setSelectedInventories(data.map((inv: Inventory) => inv.id));
     } catch (err) {
       console.error('Failed to fetch inventories:', err);
@@ -177,11 +185,19 @@ export default function Items() {
     setSelectedInventories([]);
   };
 
+  const filteredItems = selectedInventories.length > 0
+    ? items.filter(item => selectedInventories.includes(item.inventoryId))
+    : items;
+
+  const filteredItemScrapings = selectedInventories.length > 0
+    ? itemScrapings.filter(item => selectedInventories.includes(item.inventoryId))
+    : itemScrapings;
+
   const handleDeleteItem = async (itemId: string) => {
     try {
       const res = await fetch(`/api/items/${itemId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete item');
-      fetchInventories(); // Refresh the items list
+      fetchItems(); // Refresh the items list
     } catch (err) {
       console.error('Failed to delete item:', err);
     }
@@ -191,7 +207,7 @@ export default function Items() {
     try {
       const res = await fetch(`/api/itemscrapings/${itemId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete item scraping');
-      fetchInventories(); // Refresh the items list
+      fetchItems(); // Refresh the items list
     } catch (err) {
       console.error('Failed to delete item scraping:', err);
     }
@@ -252,41 +268,41 @@ export default function Items() {
         ))}
       </div>
       
-      {inventories.filter(inv => selectedInventories.includes(inv.id)).map(inventory => (
-        <div key={inventory.id} className="mb-8">
-          <h2 className="text-xl font-semibold text-white mb-4">{inventory.name}</h2>
-          
-          {(displayMode === 'all' || displayMode === 'items') && inventory.items && inventory.items.length > 0 && (
-            <div>
-              <h3 className="text-lg font-semibold text-white mb-2">Regular Items</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {inventory.items.map(item => (
-                  <ItemCard key={item.id} item={item} onDelete={handleDeleteItem} />
-                ))}
+      {selectedInventories.map(inventoryId => {
+        const inventoryItems = filteredItems.filter(item => item.inventoryId === inventoryId);
+        const inventoryScrapings = filteredItemScrapings.filter(item => item.inventoryId === inventoryId);
+        const inventoryName = inventories.find(inv => inv.id === inventoryId)?.name;
+
+        return (
+          <div key={inventoryId} className="mb-8">
+            <h2 className="text-xl font-semibold text-white mb-4">{inventoryName}</h2>
+            
+            {(displayMode === 'all' || displayMode === 'items') && inventoryItems.length > 0 && (
+              <div>
+                <h3 className="text-lg font-semibold text-white mb-2">Regular Items</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {inventoryItems.map(item => (
+                    <ItemCard key={item.id} item={item} onDelete={handleDeleteItem} />
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {displayMode === 'all' && inventory.items && inventory.items.length > 0 && inventory.itemScrapings && inventory.itemScrapings.length > 0 && (
-            <hr className="border-t border-indigo-300 my-4" />
-          )}
+            {displayMode === 'all' && <hr className="border-t border-indigo-300 my-4" />}
 
-          {(displayMode === 'all' || displayMode === 'scrapings') && inventory.itemScrapings && inventory.itemScrapings.length > 0 && (
-            <div>
-              <h3 className="text-lg font-semibold text-white mb-2">Scraped Items</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {inventory.itemScrapings.map(item => (
-                  <ItemScrapingCard key={item.id} item={item} onDelete={handleDeleteItemScraping} />
-                ))}
+            {(displayMode === 'all' || displayMode === 'scrapings') && inventoryScrapings.length > 0 && (
+              <div>
+                <h3 className="text-lg font-semibold text-white mb-2">Scraped Items</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {inventoryScrapings.map(item => (
+                    <ItemScrapingCard key={item.id} item={item} onDelete={handleDeleteItemScraping} />
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-
-          {(!inventory.items || inventory.items.length === 0) && (!inventory.itemScrapings || inventory.itemScrapings.length === 0) && (
-            <p className="text-white">No items in this inventory.</p>
-          )}
-        </div>
-      ))}
+            )}
+          </div>
+        );
+      })}
 
       <NewItemCard />
     </div>
