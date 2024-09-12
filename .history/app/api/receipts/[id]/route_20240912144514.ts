@@ -14,7 +14,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
     const receipt = await prisma.receipt.findUnique({
       where: { id: params.id },
       include: {
-        receiptItems: {
+        items: {
           include: {
             item: {
               include: {
@@ -33,7 +33,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
     const formattedReceipt = {
       ...receipt,
-      items: receipt.receiptItems.map(receiptItem => ({
+      items: receipt.items.map(receiptItem => ({
         id: receiptItem.id,
         itemName: receiptItem.item.name,
         quantity: receiptItem.quantity,

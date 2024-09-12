@@ -339,7 +339,9 @@ export default function ManageReceipts() {
       let categoryId = selectedCategories[groupKey];
 
       if (!categoryId) {
-        throw new Error('Please select a category before saving.');
+        // Create a new category if one isn't selected
+        const newCategory = await createExpenseCategory(groupKey);
+        categoryId = newCategory.id;
       }
 
       // Ensure we have a Receipts inventory
@@ -347,57 +349,26 @@ export default function ManageReceipts() {
         await ensureReceiptsInventory();
       }
 
-      // Group transactions by description
-      const transactionsByDescription = group.transactions.reduce((acc, transaction) => {
-        if (!acc[transaction.description]) {
-          acc[transaction.description] = [];
-        }
-        acc[transaction.description].push(transaction);
-        return acc;
-      }, {} as { [key: string]: ParsedTransaction[] });
+      const receiptData = {
+        storeName: groupKey,
+        totalAmount: group.totalAmount,
+        date: new Date().toISOString(),
+        items: group.transactions.map((transaction: ParsedTransaction) => ({
+          name: transaction.description,
+          quantity: 1,
+          totalPrice: transaction.amount,
+          categoryId: categoryId,
+          inventoryId: receiptsInventoryId,
+        })),
+      };
 
-      for (const [description, transactions] of Object.entries(transactionsByDescription)) {
-        // Create an Item for each unique description
-        const itemRes = await fetch('/api/items', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: description,
-            inventoryId: receiptsInventoryId,
-            price: Math.abs(transactions[0].amount), // Use the absolute amount of the first transaction as the price
-            quantity: 1,
-          }),
-        });
+      const res = await fetch('/api/receipts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(receiptData),
+      });
 
-        if (!itemRes.ok) throw new Error('Failed to create item');
-        const item = await itemRes.json();
-
-        // Create a Receipt for each transaction
-        for (const transaction of transactions) {
-          const receiptData = {
-            storeName: groupKey,
-            totalAmount: Math.abs(transaction.amount),
-            date: new Date(transaction.date).toISOString(),
-            items: [{
-              itemId: item.id,
-              quantity: 1,
-              totalPrice: Math.abs(transaction.amount),
-              categoryId: categoryId,
-            }],
-          };
-
-          const receiptRes = await fetch('/api/receipts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(receiptData),
-          });
-
-          if (!receiptRes.ok) {
-            const errorText = await receiptRes.text();
-            throw new Error(`Failed to create receipt: ${errorText}`);
-          }
-        }
-      }
+      if (!res.ok) throw new Error('Failed to save receipt');
 
       // Remove the saved grouping from the state
       const updatedGroupedTransactions = { ...groupedTransactions };
@@ -405,41 +376,24 @@ export default function ManageReceipts() {
       setGroupedTransactions(updatedGroupedTransactions);
 
       fetchReceipts();
-      setError(`Grouping "${groupKey}" saved successfully as receipts.`);
+      setError(`Grouping "${groupKey}" saved successfully as a receipt.`);
     } catch (err) {
       console.error('Failed to save grouping:', err);
-      setError(`Failed to save grouping "${groupKey}" as receipts. Please try again. ${err.message}`);
+      setError(`Failed to save grouping "${groupKey}" as a receipt. Please try again.`);
     }
   };
 
-  const handleCategoryChange = async (groupKey: string, value: string) => {
-    if (value === 'new') {
-      const categoryName = prompt('Enter new category name:');
-      if (categoryName) {
-        try {
-          const newCategory = await createExpenseCategory(categoryName);
-          setSelectedCategories(prev => ({
-            ...prev,
-            [groupKey]: newCategory.id,
-          }));
-          setExpenseCategories([...expenseCategories, newCategory]);
-        } catch (error) {
-          console.error('Failed to create new category:', error);
-          setError('Failed to create new category. Please try again.');
-        }
-      }
-    } else {
-      setSelectedCategories(prev => ({
-        ...prev,
-        [groupKey]: value,
-      }));
-    }
+  const handleCategoryChange = (groupKey: string, categoryId: string) => {
+    setSelectedCategories(prev => ({
+      ...prev,
+      [groupKey]: categoryId,
+    }));
   };
 
   const handleInventoryChange = (transactionDescription: string, inventoryId: string) => {
     setSelectedInventories(prev => ({
       ...prev,
-      [transactionDescription]: inventoryId || receiptsInventoryId,
+      [transactionDescription]: inventoryId,
     }));
   };
 
@@ -555,28 +509,19 @@ export default function ManageReceipts() {
               <h3 className="text-lg font-bold text-white">{groupedTransactions[groupKey].description}</h3>
               <p className="text-gray-300 mb-2">Total Amount: ${groupedTransactions[groupKey].totalAmount.toFixed(2)}</p>
 
-              <div className="mb-4 flex items-center justify-between">
-                <div className="flex-grow mr-4">
-                  <label htmlFor={`category-${groupKey}`} className="block text-sm font-medium text-gray-300">Expense Category</label>
-                  <select
-                    id={`category-${groupKey}`}
-                    value={selectedCategories[groupKey] || ''}
-                    onChange={(e) => handleCategoryChange(groupKey, e.target.value)}
-                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md text-black bg-white"
-                  >
-                    <option value="">Select a category</option>
-                    {expenseCategories.map((category) => (
-                      <option key={category.id} value={category.id}>{category.name}</option>
-                    ))}
-                    <option value="new">+ Create new category</option>
-                  </select>
-                </div>
-                <button
-                  onClick={() => handleSaveGrouping(groupKey)}
-                  className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition duration-150 ease-in-out"
+              <div className="mb-4">
+                <label htmlFor={`category-${groupKey}`} className="block text-sm font-medium text-gray-300">Expense Category</label>
+                <select
+                  id={`category-${groupKey}`}
+                  value={selectedCategories[groupKey] || ''}
+                  onChange={(e) => handleCategoryChange(groupKey, e.target.value)}
+                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
                 >
-                  Save as Receipt
-                </button>
+                  <option value="">Select a category</option>
+                  {expenseCategories.map((category) => (
+                    <option key={category.id} value={category.id}>{category.name}</option>
+                  ))}
+                </select>
               </div>
 
               {selectedCategories[groupKey] === 'new' && (
@@ -587,7 +532,7 @@ export default function ManageReceipts() {
                     id={`new-category-${groupKey}`}
                     value={newCategoryName}
                     onChange={(e) => setNewCategoryName(e.target.value)}
-                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-black bg-white"
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                   />
                 </div>
               )}
@@ -609,9 +554,9 @@ export default function ManageReceipts() {
                       <td className="border px-4 py-2">${transaction.amount.toFixed(2)}</td>
                       <td className="border px-4 py-2">
                         <select
-                          value={selectedInventories[transaction.description] || receiptsInventoryId || ''}
+                          value={selectedInventories[transaction.description] || ''}
                           onChange={(e) => handleInventoryChange(transaction.description, e.target.value)}
-                          className="bg-white text-black px-2 py-1 rounded w-full"
+                          className="bg-gray-700 text-white px-2 py-1 rounded"
                         >
                           <option value="">Select Inventory</option>
                           {inventories.map((inventory) => (
@@ -625,6 +570,13 @@ export default function ManageReceipts() {
                   ))}
                 </tbody>
               </table>
+
+              <button
+                onClick={() => handleSaveGrouping(groupKey)}
+                className="mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition duration-150 ease-in-out"
+              >
+                Save as Receipt
+              </button>
             </div>
           ))}
         </div>

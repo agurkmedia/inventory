@@ -80,36 +80,25 @@ export async function PUT(request: Request) {
 
   try {
     const { quantity, totalPrice, categoryId, itemName, inventoryId } = await request.json();
-
-    // First, update the ReceiptItem
-    const updatedReceiptItem = await prisma.receiptItem.update({
+    const updatedItem = await prisma.receiptItem.update({
       where: { id },
       data: {
         quantity,
         totalPrice,
         categoryId,
+        item: {
+          update: {
+            name: itemName,
+            inventoryId: inventoryId || null, // Update inventoryId, set to null if not provided
+          },
+        },
       },
       include: {
         item: true,
+        category: true,
       },
     });
-
-    // Then, update the associated Item
-    const updatedItem = await prisma.item.update({
-      where: { id: updatedReceiptItem.itemId },
-      data: {
-        name: itemName,
-        inventoryId: inventoryId || null,
-      },
-    });
-
-    // Combine the updated ReceiptItem and Item data
-    const result = {
-      ...updatedReceiptItem,
-      item: updatedItem,
-    };
-
-    return NextResponse.json(result);
+    return NextResponse.json(updatedItem);
   } catch (error) {
     console.error('Failed to update receipt item:', error);
     return NextResponse.json({ error: 'Failed to update receipt item' }, { status: 500 });

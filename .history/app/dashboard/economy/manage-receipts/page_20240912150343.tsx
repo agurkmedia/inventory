@@ -35,11 +35,6 @@ interface Inventory {
   name: string;
 }
 
-interface ExpenseCategory {
-  id: string;
-  name: string;
-}
-
 const DNBModel: CSVModel = {
   name: 'DNB',
   parseFunction: (results: Papa.ParseResult<any>) => {
@@ -93,18 +88,12 @@ export default function ManageReceipts() {
   const [showKeywordMappings, setShowKeywordMappings] = useState(true);
   const [inventories, setInventories] = useState<Inventory[]>([]);
   const [selectedInventories, setSelectedInventories] = useState<{ [key: string]: string }>({});
-  const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([]);
-  const [newCategoryName, setNewCategoryName] = useState('');
-  const [selectedCategories, setSelectedCategories] = useState<{ [key: string]: string }>({});
-  const [receiptsInventoryId, setReceiptsInventoryId] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === 'authenticated') {
       fetchReceipts();
       fetchKeywordMappings();
       fetchInventories();
-      fetchExpenseCategories();
-      ensureReceiptsInventory();
     }
   }, [status]);
 
@@ -152,43 +141,6 @@ export default function ManageReceipts() {
     } catch (err) {
       console.error('Failed to fetch inventories:', err);
       setError('Failed to load inventories. Please try again.');
-    }
-  };
-
-  const fetchExpenseCategories = async () => {
-    try {
-      const res = await fetch('/api/expense-categories');
-      if (!res.ok) throw new Error('Failed to fetch expense categories');
-      const data = await res.json();
-      setExpenseCategories(data);
-    } catch (err) {
-      console.error('Failed to fetch expense categories:', err);
-      setError('Failed to load expense categories. Please try again.');
-    }
-  };
-
-  const ensureReceiptsInventory = async () => {
-    try {
-      // First, check if 'Receipts' inventory already exists
-      const existingInventories = await fetch('/api/inventories').then(res => res.json());
-      const receiptsInventory = existingInventories.find((inv: Inventory) => inv.name === 'Receipts');
-
-      if (receiptsInventory) {
-        setReceiptsInventoryId(receiptsInventory.id);
-      } else {
-        // If it doesn't exist, create it
-        const res = await fetch('/api/inventories', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: 'Receipts' }),
-        });
-        if (!res.ok) throw new Error('Failed to create Receipts inventory');
-        const newInventory = await res.json();
-        setReceiptsInventoryId(newInventory.id);
-      }
-    } catch (err) {
-      console.error('Failed to ensure Receipts inventory:', err);
-      setError('Failed to ensure Receipts inventory. Please try again.');
     }
   };
 
@@ -320,126 +272,74 @@ export default function ManageReceipts() {
     setShowKeywordMappings(!showKeywordMappings);
   };
 
-  const createExpenseCategory = async (name: string): Promise<ExpenseCategory> => {
-    const res = await fetch('/api/expense-categories', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
-    });
-
-    if (!res.ok) throw new Error('Failed to create expense category');
-    const newCategory = await res.json();
-    setExpenseCategories([...expenseCategories, newCategory]);
-    return newCategory;
-  };
-
-  const handleSaveGrouping = async (groupKey: string) => {
+  const handleSaveGroupedTransactions = async () => {
     try {
-      const group = groupedTransactions[groupKey];
-      let categoryId = selectedCategories[groupKey];
+      for (const groupKey of Object.keys(groupedTransactions)) {
+        const group = groupedTransactions[groupKey];
+        
+        // Check if the category exists, if not create it
+        let categoryId = await ensureCategory(groupKey);
 
-      if (!categoryId) {
-        throw new Error('Please select a category before saving.');
-      }
+        // Create a new receipt for each group
+        const receiptData = {
+          storeName: groupKey,
+          totalAmount: group.totalAmount,
+          date: new Date().toISOString(),
+          items: group.transactions.map((transaction: ParsedTransaction) => ({
+            name: transaction.description,
+            quantity: 1,
+            totalPrice: transaction.amount,
+            categoryId: categoryId,
+            inventoryId: selectedInventories[transaction.description] || null,
+          })),
+        };
 
-      // Ensure we have a Receipts inventory
-      if (!receiptsInventoryId) {
-        await ensureReceiptsInventory();
-      }
-
-      // Group transactions by description
-      const transactionsByDescription = group.transactions.reduce((acc, transaction) => {
-        if (!acc[transaction.description]) {
-          acc[transaction.description] = [];
-        }
-        acc[transaction.description].push(transaction);
-        return acc;
-      }, {} as { [key: string]: ParsedTransaction[] });
-
-      for (const [description, transactions] of Object.entries(transactionsByDescription)) {
-        // Create an Item for each unique description
-        const itemRes = await fetch('/api/items', {
+        const res = await fetch('/api/receipts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: description,
-            inventoryId: receiptsInventoryId,
-            price: Math.abs(transactions[0].amount), // Use the absolute amount of the first transaction as the price
-            quantity: 1,
-          }),
+          body: JSON.stringify(receiptData),
         });
 
-        if (!itemRes.ok) throw new Error('Failed to create item');
-        const item = await itemRes.json();
-
-        // Create a Receipt for each transaction
-        for (const transaction of transactions) {
-          const receiptData = {
-            storeName: groupKey,
-            totalAmount: Math.abs(transaction.amount),
-            date: new Date(transaction.date).toISOString(),
-            items: [{
-              itemId: item.id,
-              quantity: 1,
-              totalPrice: Math.abs(transaction.amount),
-              categoryId: categoryId,
-            }],
-          };
-
-          const receiptRes = await fetch('/api/receipts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(receiptData),
-          });
-
-          if (!receiptRes.ok) {
-            const errorText = await receiptRes.text();
-            throw new Error(`Failed to create receipt: ${errorText}`);
-          }
-        }
+        if (!res.ok) throw new Error('Failed to save receipt');
       }
 
-      // Remove the saved grouping from the state
-      const updatedGroupedTransactions = { ...groupedTransactions };
-      delete updatedGroupedTransactions[groupKey];
-      setGroupedTransactions(updatedGroupedTransactions);
-
+      // Clear the grouped transactions and refresh the receipts list
+      setGroupedTransactions({});
       fetchReceipts();
-      setError(`Grouping "${groupKey}" saved successfully as receipts.`);
+      setError('Transactions saved successfully as receipts.');
     } catch (err) {
-      console.error('Failed to save grouping:', err);
-      setError(`Failed to save grouping "${groupKey}" as receipts. Please try again. ${err.message}`);
+      console.error('Failed to save grouped transactions:', err);
+      setError('Failed to save transactions as receipts. Please try again.');
     }
   };
 
-  const handleCategoryChange = async (groupKey: string, value: string) => {
-    if (value === 'new') {
-      const categoryName = prompt('Enter new category name:');
-      if (categoryName) {
-        try {
-          const newCategory = await createExpenseCategory(categoryName);
-          setSelectedCategories(prev => ({
-            ...prev,
-            [groupKey]: newCategory.id,
-          }));
-          setExpenseCategories([...expenseCategories, newCategory]);
-        } catch (error) {
-          console.error('Failed to create new category:', error);
-          setError('Failed to create new category. Please try again.');
-        }
-      }
-    } else {
-      setSelectedCategories(prev => ({
-        ...prev,
-        [groupKey]: value,
-      }));
+  const ensureCategory = async (categoryName: string): Promise<string> => {
+    // Check if the category exists
+    const existingCategory = categories.find(cat => cat.name === categoryName);
+    if (existingCategory) return existingCategory.id;
+
+    // If not, create a new category
+    try {
+      const res = await fetch('/api/expense-categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: categoryName }),
+      });
+
+      if (!res.ok) throw new Error('Failed to create category');
+      const newCategory = await res.json();
+      setCategories([...categories, newCategory]);
+      return newCategory.id;
+    } catch (err) {
+      console.error('Failed to create category:', err);
+      throw err;
     }
   };
 
   const handleInventoryChange = (transactionDescription: string, inventoryId: string) => {
     setSelectedInventories(prev => ({
       ...prev,
-      [transactionDescription]: inventoryId || receiptsInventoryId,
+      [transactionDescription]: inventoryId,
     }));
   };
 
@@ -555,43 +455,6 @@ export default function ManageReceipts() {
               <h3 className="text-lg font-bold text-white">{groupedTransactions[groupKey].description}</h3>
               <p className="text-gray-300 mb-2">Total Amount: ${groupedTransactions[groupKey].totalAmount.toFixed(2)}</p>
 
-              <div className="mb-4 flex items-center justify-between">
-                <div className="flex-grow mr-4">
-                  <label htmlFor={`category-${groupKey}`} className="block text-sm font-medium text-gray-300">Expense Category</label>
-                  <select
-                    id={`category-${groupKey}`}
-                    value={selectedCategories[groupKey] || ''}
-                    onChange={(e) => handleCategoryChange(groupKey, e.target.value)}
-                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md text-black bg-white"
-                  >
-                    <option value="">Select a category</option>
-                    {expenseCategories.map((category) => (
-                      <option key={category.id} value={category.id}>{category.name}</option>
-                    ))}
-                    <option value="new">+ Create new category</option>
-                  </select>
-                </div>
-                <button
-                  onClick={() => handleSaveGrouping(groupKey)}
-                  className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition duration-150 ease-in-out"
-                >
-                  Save as Receipt
-                </button>
-              </div>
-
-              {selectedCategories[groupKey] === 'new' && (
-                <div className="mb-4">
-                  <label htmlFor={`new-category-${groupKey}`} className="block text-sm font-medium text-gray-300">New Category Name</label>
-                  <input
-                    type="text"
-                    id={`new-category-${groupKey}`}
-                    value={newCategoryName}
-                    onChange={(e) => setNewCategoryName(e.target.value)}
-                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-black bg-white"
-                  />
-                </div>
-              )}
-
               <table className="min-w-full bg-gray-800 rounded-lg overflow-hidden">
                 <thead className="bg-blue-600 text-white">
                   <tr>
@@ -609,9 +472,9 @@ export default function ManageReceipts() {
                       <td className="border px-4 py-2">${transaction.amount.toFixed(2)}</td>
                       <td className="border px-4 py-2">
                         <select
-                          value={selectedInventories[transaction.description] || receiptsInventoryId || ''}
+                          value={selectedInventories[transaction.description] || ''}
                           onChange={(e) => handleInventoryChange(transaction.description, e.target.value)}
-                          className="bg-white text-black px-2 py-1 rounded w-full"
+                          className="bg-gray-700 text-white px-2 py-1 rounded"
                         >
                           <option value="">Select Inventory</option>
                           {inventories.map((inventory) => (
@@ -627,6 +490,12 @@ export default function ManageReceipts() {
               </table>
             </div>
           ))}
+          <button
+            onClick={handleSaveGroupedTransactions}
+            className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition duration-150 ease-in-out mt-4"
+          >
+            Save as Receipts
+          </button>
         </div>
       )}
 

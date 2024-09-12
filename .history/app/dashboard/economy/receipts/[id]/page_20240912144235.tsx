@@ -49,8 +49,24 @@ export default function ReceiptDetails({ params }: { params: { id: string } }) {
       if (!res.ok) throw new Error('Failed to fetch receipt');
       const data = await res.json();
       
-      // The API now returns the items directly, so we don't need to transform them here
-      setReceipt(data);
+      // Calculate total amount if there are items
+      if (data.items && data.items.length > 0) {
+        data.totalAmount = calculateTotalAmount(data.items);
+      }
+      
+      // Fetch inventory names for each item
+      const itemsWithInventory = await Promise.all(data.items.map(async (item: ReceiptItem) => {
+        if (item.inventoryId) {
+          const inventoryRes = await fetch(`/api/inventories/${item.inventoryId}`);
+          if (inventoryRes.ok) {
+            const inventory = await inventoryRes.json();
+            return { ...item, inventoryName: inventory.name };
+          }
+        }
+        return { ...item, inventoryName: 'Not assigned' };
+      }));
+
+      setReceipt({ ...data, items: itemsWithInventory });
     } catch (err) {
       console.error('Failed to fetch receipt:', err);
       setError('Failed to load receipt. Please try again.');
@@ -239,7 +255,7 @@ export default function ReceiptDetails({ params }: { params: { id: string } }) {
                   <div>
                     <p><strong>{item.itemName}</strong> - Quantity: {item.quantity}</p>
                     <p>Price: ${item.totalPrice.toFixed(2)} - Category: {item.categoryName}</p>
-                    <p>Inventory: {item.inventoryName || 'Not assigned'}</p>
+                    <p>Inventory: {item.inventoryName}</p>
                     <button onClick={() => handleEditItem(item.id)} className="text-blue-500 mr-2">Edit</button>
                     <button onClick={() => handleDeleteItem(item.id)} className="text-red-500">Delete</button>
                   </div>

@@ -4,45 +4,42 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/authOptions";
 
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
-  if (!session || !session.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  if (!session) {
+    return NextResponse.json({ error: "Not authorized" }, { status: 401 });
   }
 
   try {
     const receipt = await prisma.receipt.findUnique({
-      where: { id: params.id },
+      where: { 
+        id: params.id,
+        userId: session.user?.id,
+      },
       include: {
         receiptItems: {
           include: {
-            item: {
-              include: {
-                inventory: true
-              }
-            },
-            category: true
-          }
-        }
-      }
+            item: true,
+            category: true,
+          },
+        },
+      },
     });
 
     if (!receipt) {
-      return NextResponse.json({ error: 'Receipt not found' }, { status: 404 });
+      return NextResponse.json({ error: "Receipt not found" }, { status: 404 });
     }
 
     const formattedReceipt = {
       ...receipt,
-      items: receipt.receiptItems.map(receiptItem => ({
-        id: receiptItem.id,
-        itemName: receiptItem.item.name,
-        quantity: receiptItem.quantity,
-        totalPrice: receiptItem.totalPrice,
-        categoryId: receiptItem.categoryId,
-        categoryName: receiptItem.category.name,
-        inventoryId: receiptItem.item.inventoryId,
-        inventoryName: receiptItem.item.inventory?.name || 'Not assigned'
-      }))
+      items: receipt.receiptItems.map(item => ({
+        id: item.id,
+        itemName: item.item.name,
+        quantity: item.quantity,
+        totalPrice: item.totalPrice,
+        categoryName: item.category.name,
+      })),
     };
 
     return NextResponse.json(formattedReceipt);

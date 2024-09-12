@@ -339,7 +339,9 @@ export default function ManageReceipts() {
       let categoryId = selectedCategories[groupKey];
 
       if (!categoryId) {
-        throw new Error('Please select a category before saving.');
+        // Create a new category if one isn't selected
+        const newCategory = await createExpenseCategory(groupKey);
+        categoryId = newCategory.id;
       }
 
       // Ensure we have a Receipts inventory
@@ -347,41 +349,54 @@ export default function ManageReceipts() {
         await ensureReceiptsInventory();
       }
 
-      // Group transactions by description
-      const transactionsByDescription = group.transactions.reduce((acc, transaction) => {
-        if (!acc[transaction.description]) {
-          acc[transaction.description] = [];
+      // Group transactions by description and price
+      const transactionsByDescriptionAndPrice = group.transactions.reduce((acc, transaction) => {
+        const key = `${transaction.description}_${transaction.amount}`;
+        if (!acc[key]) {
+          acc[key] = [];
         }
-        acc[transaction.description].push(transaction);
+        acc[key].push(transaction);
         return acc;
       }, {} as { [key: string]: ParsedTransaction[] });
 
-      for (const [description, transactions] of Object.entries(transactionsByDescription)) {
-        // Create an Item for each unique description
-        const itemRes = await fetch('/api/items', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: description,
-            inventoryId: receiptsInventoryId,
-            price: Math.abs(transactions[0].amount), // Use the absolute amount of the first transaction as the price
-            quantity: 1,
-          }),
-        });
+      for (const [key, transactions] of Object.entries(transactionsByDescriptionAndPrice)) {
+        const [description, priceString] = key.split('_');
+        const price = Math.abs(parseFloat(priceString));
 
-        if (!itemRes.ok) throw new Error('Failed to create item');
-        const item = await itemRes.json();
+        // Check if an item with the same name and price already exists
+        let item = await fetchExistingItem(description, price);
 
-        // Create a Receipt for each transaction
-        for (const transaction of transactions) {
+        if (!item) {
+          // Create a new item if it doesn't exist
+          const itemRes = await fetch('/api/items', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: description,
+              inventoryId: receiptsInventoryId,
+              price: price,
+              quantity: 1,
+            }),
+          });
+
+          if (!itemRes.ok) throw new Error('Failed to create item');
+          item = await itemRes.json();
+        }
+
+        // Create a Receipt for each unique date
+        const uniqueDates = [...new Set(transactions.map(t => t.date))];
+        for (const date of uniqueDates) {
+          const transactionsForDate = transactions.filter(t => t.date === date);
+          const totalAmount = transactionsForDate.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
           const receiptData = {
             storeName: groupKey,
-            totalAmount: Math.abs(transaction.amount),
-            date: new Date(transaction.date).toISOString(),
+            totalAmount: totalAmount,
+            date: new Date(date).toISOString(),
             items: [{
               itemId: item.id,
-              quantity: 1,
-              totalPrice: Math.abs(transaction.amount),
+              quantity: transactionsForDate.length,
+              totalPrice: totalAmount,
               categoryId: categoryId,
             }],
           };
@@ -410,6 +425,14 @@ export default function ManageReceipts() {
       console.error('Failed to save grouping:', err);
       setError(`Failed to save grouping "${groupKey}" as receipts. Please try again. ${err.message}`);
     }
+  };
+
+  // Add this helper function to fetch an existing item
+  const fetchExistingItem = async (name: string, price: number) => {
+    const res = await fetch(`/api/items?name=${encodeURIComponent(name)}&price=${price}`);
+    if (!res.ok) return null;
+    const items = await res.json();
+    return items.length > 0 ? items[0] : null;
   };
 
   const handleCategoryChange = async (groupKey: string, value: string) => {

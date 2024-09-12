@@ -339,7 +339,9 @@ export default function ManageReceipts() {
       let categoryId = selectedCategories[groupKey];
 
       if (!categoryId) {
-        throw new Error('Please select a category before saving.');
+        // Create a new category if one isn't selected
+        const newCategory = await createExpenseCategory(groupKey);
+        categoryId = newCategory.id;
       }
 
       // Ensure we have a Receipts inventory

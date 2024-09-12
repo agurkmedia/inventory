@@ -39,27 +39,20 @@ export async function POST(req: Request) {
         userId: session.user.id,
         receiptItems: {
           create: items.map((item: any) => ({
+            itemId: item.itemId,
             quantity: item.quantity,
             totalPrice: item.totalPrice,
             categoryId: item.categoryId,
-            item: {
-              connect: { id: item.itemId }
-            }
           })),
         },
       },
       include: {
-        receiptItems: {
-          include: {
-            item: true,
-            category: true,
-          }
-        },
+        receiptItems: true,
       },
     });
     return NextResponse.json(newReceipt);
   } catch (error) {
     console.error('Failed to create receipt:', error);
-    return NextResponse.json({ error: 'Failed to create receipt', details: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to create receipt' }, { status: 500 });
   }
 }

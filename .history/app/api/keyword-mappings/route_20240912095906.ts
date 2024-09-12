@@ -50,8 +50,8 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id');
+  const url = new URL(request.url);
+  const id = url.pathname.split('/').pop();
 
   if (!id) {
     return NextResponse.json({ error: 'Missing ID' }, { status: 400 });
@@ -76,8 +76,8 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id');
+  const url = new URL(request.url);
+  const id = url.pathname.split('/').pop();
 
   if (!id) {
     return NextResponse.json({ error: 'Missing ID' }, { status: 400 });
@@ -87,7 +87,7 @@ export async function DELETE(request: Request) {
     await prisma.keywordMapping.delete({
       where: { id },
     });
-    return NextResponse.json({ message: 'Keyword mapping deleted successfully' }, { status: 200 });
+    return NextResponse.json(null, { status: 204 });
   } catch (error) {
     console.error('Failed to delete keyword mapping:', error);
     return NextResponse.json({ error: 'Failed to delete keyword mapping' }, { status: 500 });

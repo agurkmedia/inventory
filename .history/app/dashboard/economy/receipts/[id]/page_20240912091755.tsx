@@ -12,8 +12,6 @@ interface ReceiptItem {
   totalPrice: number;
   categoryId: string;
   categoryName: string;
-  inventoryId?: string;
-  inventoryName?: string;
 }
 
 interface Receipt {
@@ -49,7 +47,11 @@ export default function ReceiptDetails({ params }: { params: { id: string } }) {
       if (!res.ok) throw new Error('Failed to fetch receipt');
       const data = await res.json();
       
-      // The API now returns the items directly, so we don't need to transform them here
+      // Calculate total amount if there are items
+      if (data.items && data.items.length > 0) {
+        data.totalAmount = calculateTotalAmount(data.items);
+      }
+      
       setReceipt(data);
     } catch (err) {
       console.error('Failed to fetch receipt:', err);
@@ -115,14 +117,14 @@ export default function ReceiptDetails({ params }: { params: { id: string } }) {
           totalPrice: editedTotalPrice,
           categoryId: editedCategoryId,
           itemName: editItemName,
-          inventoryId: editInventoryId || null,
+          inventoryId: editInventoryId,
         }),
       });
 
       if (!res.ok) throw new Error('Failed to update item');
       
-      await fetchReceipt(); // Refresh the receipt data
       setEditingItem(null);
+      fetchReceipt(); // Refresh the receipt data
     } catch (err) {
       console.error('Failed to update item:', err);
       setError('Failed to update item. Please try again.');
@@ -239,7 +241,6 @@ export default function ReceiptDetails({ params }: { params: { id: string } }) {
                   <div>
                     <p><strong>{item.itemName}</strong> - Quantity: {item.quantity}</p>
                     <p>Price: ${item.totalPrice.toFixed(2)} - Category: {item.categoryName}</p>
-                    <p>Inventory: {item.inventoryName || 'Not assigned'}</p>
                     <button onClick={() => handleEditItem(item.id)} className="text-blue-500 mr-2">Edit</button>
                     <button onClick={() => handleDeleteItem(item.id)} className="text-red-500">Delete</button>
                   </div>

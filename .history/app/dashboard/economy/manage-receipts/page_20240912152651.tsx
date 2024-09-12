@@ -339,7 +339,9 @@ export default function ManageReceipts() {
       let categoryId = selectedCategories[groupKey];
 
       if (!categoryId) {
-        throw new Error('Please select a category before saving.');
+        // Create a new category if one isn't selected
+        const newCategory = await createExpenseCategory(groupKey);
+        categoryId = newCategory.id;
       }
 
       // Ensure we have a Receipts inventory
@@ -347,57 +349,26 @@ export default function ManageReceipts() {
         await ensureReceiptsInventory();
       }
 
-      // Group transactions by description
-      const transactionsByDescription = group.transactions.reduce((acc, transaction) => {
-        if (!acc[transaction.description]) {
-          acc[transaction.description] = [];
-        }
-        acc[transaction.description].push(transaction);
-        return acc;
-      }, {} as { [key: string]: ParsedTransaction[] });
+      const receiptData = {
+        storeName: groupKey,
+        totalAmount: group.totalAmount,
+        date: new Date().toISOString(),
+        items: group.transactions.map((transaction: ParsedTransaction) => ({
+          name: transaction.description,
+          quantity: 1,
+          totalPrice: transaction.amount,
+          categoryId: categoryId,
+          inventoryId: receiptsInventoryId,
+        })),
+      };
 
-      for (const [description, transactions] of Object.entries(transactionsByDescription)) {
-        // Create an Item for each unique description
-        const itemRes = await fetch('/api/items', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: description,
-            inventoryId: receiptsInventoryId,
-            price: Math.abs(transactions[0].amount), // Use the absolute amount of the first transaction as the price
-            quantity: 1,
-          }),
-        });
+      const res = await fetch('/api/receipts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(receiptData),
+      });
 
-        if (!itemRes.ok) throw new Error('Failed to create item');
-        const item = await itemRes.json();
-
-        // Create a Receipt for each transaction
-        for (const transaction of transactions) {
-          const receiptData = {
-            storeName: groupKey,
-            totalAmount: Math.abs(transaction.amount),
-            date: new Date(transaction.date).toISOString(),
-            items: [{
-              itemId: item.id,
-              quantity: 1,
-              totalPrice: Math.abs(transaction.amount),
-              categoryId: categoryId,
-            }],
-          };
-
-          const receiptRes = await fetch('/api/receipts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(receiptData),
-          });
-
-          if (!receiptRes.ok) {
-            const errorText = await receiptRes.text();
-            throw new Error(`Failed to create receipt: ${errorText}`);
-          }
-        }
-      }
+      if (!res.ok) throw new Error('Failed to save receipt');
 
       // Remove the saved grouping from the state
       const updatedGroupedTransactions = { ...groupedTransactions };
@@ -405,10 +376,10 @@ export default function ManageReceipts() {
       setGroupedTransactions(updatedGroupedTransactions);
 
       fetchReceipts();
-      setError(`Grouping "${groupKey}" saved successfully as receipts.`);
+      setError(`Grouping "${groupKey}" saved successfully as a receipt.`);
     } catch (err) {
       console.error('Failed to save grouping:', err);
-      setError(`Failed to save grouping "${groupKey}" as receipts. Please try again. ${err.message}`);
+      setError(`Failed to save grouping "${groupKey}" as a receipt. Please try again.`);
     }
   };
 

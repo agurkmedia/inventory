@@ -339,7 +339,9 @@ export default function ManageReceipts() {
       let categoryId = selectedCategories[groupKey];
 
       if (!categoryId) {
-        throw new Error('Please select a category before saving.');
+        // Create a new category if one isn't selected
+        const newCategory = await createExpenseCategory(groupKey);
+        categoryId = newCategory.id;
       }
 
       // Ensure we have a Receipts inventory
@@ -364,7 +366,7 @@ export default function ManageReceipts() {
           body: JSON.stringify({
             name: description,
             inventoryId: receiptsInventoryId,
-            price: Math.abs(transactions[0].amount), // Use the absolute amount of the first transaction as the price
+            price: transactions[0].amount, // Use the amount of the first transaction as the price
             quantity: 1,
           }),
         });
@@ -373,28 +375,27 @@ export default function ManageReceipts() {
         const item = await itemRes.json();
 
         // Create a Receipt for each transaction
-        for (const transaction of transactions) {
-          const receiptData = {
-            storeName: groupKey,
-            totalAmount: Math.abs(transaction.amount),
-            date: new Date(transaction.date).toISOString(),
-            items: [{
-              itemId: item.id,
-              quantity: 1,
-              totalPrice: Math.abs(transaction.amount),
-              categoryId: categoryId,
-            }],
-          };
+        if (Array.isArray(transactions)) {
+          for (const transaction of transactions) {
+            const receiptData = {
+              storeName: groupKey,
+              totalAmount: transaction.amount,
+              date: new Date(transaction.date).toISOString(), // Ensure valid date string
+              items: [{
+                itemId: item.id,
+                quantity: 1,
+                totalPrice: transaction.amount,
+                categoryId: categoryId,
+              }],
+            };
 
-          const receiptRes = await fetch('/api/receipts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(receiptData),
-          });
+            const receiptRes = await fetch('/api/receipts', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(receiptData),
+            });
 
-          if (!receiptRes.ok) {
-            const errorText = await receiptRes.text();
-            throw new Error(`Failed to create receipt: ${errorText}`);
+            if (!receiptRes.ok) throw new Error('Failed to create receipt');
           }
         }
       }
@@ -408,7 +409,7 @@ export default function ManageReceipts() {
       setError(`Grouping "${groupKey}" saved successfully as receipts.`);
     } catch (err) {
       console.error('Failed to save grouping:', err);
-      setError(`Failed to save grouping "${groupKey}" as receipts. Please try again. ${err.message}`);
+      setError(`Failed to save grouping "${groupKey}" as receipts. Please try again.`);
     }
   };
 

@@ -339,7 +339,9 @@ export default function ManageReceipts() {
       let categoryId = selectedCategories[groupKey];
 
       if (!categoryId) {
-        throw new Error('Please select a category before saving.');
+        // Create a new category if one isn't selected
+        const newCategory = await createExpenseCategory(groupKey);
+        categoryId = newCategory.id;
       }
 
       // Ensure we have a Receipts inventory
@@ -364,8 +366,8 @@ export default function ManageReceipts() {
           body: JSON.stringify({
             name: description,
             inventoryId: receiptsInventoryId,
-            price: Math.abs(transactions[0].amount), // Use the absolute amount of the first transaction as the price
-            quantity: 1,
+            price: transactions[0].amount, // Use the amount of the first transaction as the price
+            quantity: 1, // Add quantity here
           }),
         });
 
@@ -376,12 +378,12 @@ export default function ManageReceipts() {
         for (const transaction of transactions) {
           const receiptData = {
             storeName: groupKey,
-            totalAmount: Math.abs(transaction.amount),
-            date: new Date(transaction.date).toISOString(),
+            totalAmount: transaction.amount,
+            date: transaction.date,
             items: [{
               itemId: item.id,
               quantity: 1,
-              totalPrice: Math.abs(transaction.amount),
+              totalPrice: transaction.amount,
               categoryId: categoryId,
             }],
           };
@@ -392,10 +394,7 @@ export default function ManageReceipts() {
             body: JSON.stringify(receiptData),
           });
 
-          if (!receiptRes.ok) {
-            const errorText = await receiptRes.text();
-            throw new Error(`Failed to create receipt: ${errorText}`);
-          }
+          if (!receiptRes.ok) throw new Error('Failed to create receipt');
         }
       }
 
@@ -408,7 +407,7 @@ export default function ManageReceipts() {
       setError(`Grouping "${groupKey}" saved successfully as receipts.`);
     } catch (err) {
       console.error('Failed to save grouping:', err);
-      setError(`Failed to save grouping "${groupKey}" as receipts. Please try again. ${err.message}`);
+      setError(`Failed to save grouping "${groupKey}" as receipts. Please try again.`);
     }
   };
 

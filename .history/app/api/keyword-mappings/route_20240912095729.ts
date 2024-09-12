@@ -44,52 +44,42 @@ export async function POST(request: Request) {
   }
 }
 
-export async function PUT(request: Request) {
+export async function PUT(req: Request) {
   const session = await getServerSession(authOptions);
-  if (!session || !session.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!session) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
   }
 
-  const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id');
-
-  if (!id) {
-    return NextResponse.json({ error: 'Missing ID' }, { status: 400 });
-  }
+  const { id } = await req.json();
+  const { keyword, description } = await req.json();
 
   try {
-    const { keyword, description } = await request.json();
     const updatedMapping = await prisma.keywordMapping.update({
       where: { id },
       data: { keyword, description },
     });
-    return NextResponse.json(updatedMapping);
+    return new Response(JSON.stringify(updatedMapping), { status: 200 });
   } catch (error) {
     console.error('Failed to update keyword mapping:', error);
-    return NextResponse.json({ error: 'Failed to update keyword mapping' }, { status: 500 });
+    return new Response(JSON.stringify({ error: 'Failed to update keyword mapping' }), { status: 500 });
   }
 }
 
-export async function DELETE(request: Request) {
+export async function DELETE(req: Request) {
   const session = await getServerSession(authOptions);
-  if (!session || !session.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!session) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
   }
 
-  const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id');
-
-  if (!id) {
-    return NextResponse.json({ error: 'Missing ID' }, { status: 400 });
-  }
+  const { id } = await req.json();
 
   try {
     await prisma.keywordMapping.delete({
       where: { id },
     });
-    return NextResponse.json({ message: 'Keyword mapping deleted successfully' }, { status: 200 });
+    return new Response(null, { status: 204 });
   } catch (error) {
     console.error('Failed to delete keyword mapping:', error);
-    return NextResponse.json({ error: 'Failed to delete keyword mapping' }, { status: 500 });
+    return new Response(JSON.stringify({ error: 'Failed to delete keyword mapping' }), { status: 500 });
   }
 }

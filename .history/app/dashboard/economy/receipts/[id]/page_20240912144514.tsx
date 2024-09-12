@@ -49,8 +49,18 @@ export default function ReceiptDetails({ params }: { params: { id: string } }) {
       if (!res.ok) throw new Error('Failed to fetch receipt');
       const data = await res.json();
       
-      // The API now returns the items directly, so we don't need to transform them here
-      setReceipt(data);
+      // Calculate total amount if there are items
+      if (data.items && data.items.length > 0) {
+        data.totalAmount = calculateTotalAmount(data.items);
+      }
+      
+      // Ensure each item has inventoryName
+      const itemsWithInventory = data.items.map((item: ReceiptItem) => ({
+        ...item,
+        inventoryName: item.inventoryName || 'Not assigned'
+      }));
+
+      setReceipt({ ...data, items: itemsWithInventory });
     } catch (err) {
       console.error('Failed to fetch receipt:', err);
       setError('Failed to load receipt. Please try again.');

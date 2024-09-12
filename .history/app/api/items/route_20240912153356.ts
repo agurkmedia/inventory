@@ -49,7 +49,6 @@ export async function POST(req: Request) {
 				name,
 				inventoryId,
 				price,
-				quantity: 1, // Add default quantity of 1
 			},
 		});
 		return NextResponse.json(newItem);
