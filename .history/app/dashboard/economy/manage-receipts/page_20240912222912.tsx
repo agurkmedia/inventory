@@ -130,18 +130,18 @@ export default function ManageReceipts() {
     }
   }, [keywordMappings, parsedTransactions]);
 
-const fetchReceipts = async () => {
-  try {
-    const res = await fetch('/api/receipts?includeItems=true'); // Make sure the API includes receipt items
-    if (!res.ok) throw new Error('Failed to fetch receipts');
-    const data = await res.json();
-    setReceipts(data);
-  } catch (err) {
-    console.error('Failed to fetch receipts:', err);
-    setError('Failed to load receipts. Please try again.');
-  }
-};
-
+  const fetchReceipts = async () => {
+    try {
+      const res = await fetch('/api/receipts?includeItems=true'); // Make sure the API includes receipt items
+      if (!res.ok) throw new Error('Failed to fetch receipts');
+      const data = await res.json();
+      setReceipts(data);
+    } catch (err) {
+      console.error('Failed to fetch receipts:', err);
+      setError('Failed to load receipts. Please try again.');
+    }
+  };
+  
 
   const fetchKeywordMappings = async () => {
     try {

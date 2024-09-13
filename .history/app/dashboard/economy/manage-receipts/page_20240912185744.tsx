@@ -43,24 +43,13 @@ interface ExpenseCategory {
 const DNBModel: CSVModel = {
   name: 'DNB',
   parseFunction: (results: Papa.ParseResult<any>) => {
-    return results.data.map((record: any) => {
-      // Extract the raw date string (in dd.mm.yyyy format)
-      const rawDate = record['Dato'];
-      
-      // Convert the raw date to yyyy-mm-dd format
-      const parsedDate = rawDate
-        ? rawDate.split('.').reverse().join('-')  // Reformat dd.mm.yyyy to yyyy-mm-dd
-        : null;
-
-      return {
-        date: parsedDate,  // Store the reformatted date
-        description: record['Forklaring'],
-        amount: -(parseFloat(record['Ut fra konto'] || '0') - parseFloat(record['Inn på konto'] || '0')),
-      };
-    });
+    return results.data.map((record: any) => ({
+      date: record['Dato'],
+      description: record['Forklaring'],
+      amount: -(parseFloat(record['Ut fra konto'] || '0') - parseFloat(record['Inn på konto'] || '0')),
+    }));
   },
 };
-
 
 const groupTransactionsByKeyword = (transactions: ParsedTransaction[], keywordMap: { [key: string]: string }) => {
   return transactions.reduce((groups: any, transaction) => {
@@ -130,18 +119,17 @@ export default function ManageReceipts() {
     }
   }, [keywordMappings, parsedTransactions]);
 
-const fetchReceipts = async () => {
-  try {
-    const res = await fetch('/api/receipts?includeItems=true'); // Make sure the API includes receipt items
-    if (!res.ok) throw new Error('Failed to fetch receipts');
-    const data = await res.json();
-    setReceipts(data);
-  } catch (err) {
-    console.error('Failed to fetch receipts:', err);
-    setError('Failed to load receipts. Please try again.');
-  }
-};
-
+  const fetchReceipts = async () => {
+    try {
+      const res = await fetch('/api/receipts');
+      if (!res.ok) throw new Error('Failed to fetch receipts');
+      const data = await res.json();
+      setReceipts(data);
+    } catch (err) {
+      console.error('Failed to fetch receipts:', err);
+      setError('Failed to load receipts. Please try again.');
+    }
+  };
 
   const fetchKeywordMappings = async () => {
     try {
@@ -202,74 +190,123 @@ const fetchReceipts = async () => {
     }
   };
 
-  const handleAddKeywordMapping = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const ensureItemInInventory = async (description: string, inventoryId: string) => {
     try {
-      const res = await fetch('/api/keyword-mappings', {
+      const res = await fetch(`/api/items?description=${encodeURIComponent(description)}&inventoryId=${inventoryId}`);
+      if (res.ok) {
+        const existingItem = await res.json();
+        if (existingItem.length > 0) {
+          return existingItem[0];
+        }
+      }
+      const newItemRes = await fetch('/api/items', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keyword: newKeyword, description: newDescription }),
+        body: JSON.stringify({
+          name: description,
+          inventoryId,
+          price: 0,
+          quantity: 1,
+        }),
       });
-      if (!res.ok) throw new Error('Failed to add keyword mapping');
-      await fetchKeywordMappings();
-      setNewKeyword('');
-      setNewDescription('');
+
+      if (!newItemRes.ok) throw new Error('Failed to create item');
+      const newItem = await newItemRes.json();
+      return newItem;
     } catch (err) {
-      console.error('Failed to add keyword mapping:', err);
-      setError('Failed to add keyword mapping. Please try again.');
+      console.error('Error ensuring item in inventory:', err);
+      throw err;
     }
   };
 
-  const handleEditKeywordMapping = (mapping: KeywordMapping) => {
-    setEditingMapping(mapping);
-    setNewKeyword(mapping.keyword);
-    setNewDescription(mapping.description);
-  };
-
-  const handleUpdateKeywordMapping = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingMapping) return;
-
+  const createReceiptForTransaction = async (transaction: ParsedTransaction, categoryId: string, storeName: string) => {
     try {
-      const res = await fetch(`/api/keyword-mappings?id=${editingMapping.id}`, {
-        method: 'PUT',
+      const receiptData = {
+        storeName,
+        totalAmount: Math.abs(transaction.amount),
+        date: new Date(transaction.date).toISOString(),
+        categoryId,
+      };
+
+      const receiptRes = await fetch('/api/receipts', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keyword: newKeyword, description: newDescription }),
+        body: JSON.stringify(receiptData),
       });
-      if (!res.ok) throw new Error('Failed to update keyword mapping');
-      await fetchKeywordMappings();
-      setEditingMapping(null);
-      setNewKeyword('');
-      setNewDescription('');
+
+      if (!receiptRes.ok) {
+        const errorText = await receiptRes.text();
+        throw new Error(`Failed to create receipt: ${errorText}`);
+      }
+
+      return await receiptRes.json();
     } catch (err) {
-      console.error('Failed to update keyword mapping:', err);
-      setError('Failed to update keyword mapping. Please try again.');
+      console.error('Error creating receipt:', err);
+      throw err;
     }
   };
 
-  const handleDeleteKeywordMapping = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this keyword mapping?')) return;
-
+  const createReceiptItem = async (receiptId: string, itemId: string, totalPrice: number, categoryId: string) => {
     try {
-      const res = await fetch(`/api/keyword-mappings?id=${id}`, {
-        method: 'DELETE',
+      const receiptItemData = {
+        receiptId,
+        itemId,
+        quantity: 1,
+        totalPrice,
+        categoryId,
+      };
+
+      const receiptItemRes = await fetch('/api/receipt-items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(receiptItemData),
       });
-      if (!res.ok) throw new Error('Failed to delete keyword mapping');
-      await fetchKeywordMappings();
+
+      if (!receiptItemRes.ok) {
+        const errorText = await receiptItemRes.text();
+        throw new Error(`Failed to create receipt item: ${errorText}`);
+      }
+
+      return await receiptItemRes.json();
     } catch (err) {
-      console.error('Failed to delete keyword mapping:', err);
-      setError('Failed to delete keyword mapping. Please try again.');
+      console.error('Error creating receipt item:', err);
+      throw err;
     }
   };
 
-  const handleAddOrUpdateKeywordMapping = useCallback((e: React.FormEvent) => {
-    e.preventDefault();
-    if (editingMapping) {
-      handleUpdateKeywordMapping(e);
-    } else {
-      handleAddKeywordMapping(e);
+  const handleSaveGrouping = async (groupKey: string) => {
+    try {
+      const group = groupedTransactions[groupKey];
+      const categoryId = selectedCategories[groupKey];
+
+      if (!categoryId) {
+        throw new Error('Please select a category before saving.');
+      }
+
+      if (!receiptsInventoryId) {
+        await ensureReceiptsInventory();
+      }
+
+      const itemDescription = group.transactions[0].description;
+      const item = await ensureItemInInventory(itemDescription, receiptsInventoryId);
+
+      for (const transaction of group.transactions) {
+        const receipt = await createReceiptForTransaction(transaction, categoryId, groupKey);
+
+        await createReceiptItem(receipt.id, item.id, Math.abs(transaction.amount), categoryId);
+      }
+
+      const updatedGroupedTransactions = { ...groupedTransactions };
+      delete updatedGroupedTransactions[groupKey];
+      setGroupedTransactions(updatedGroupedTransactions);
+
+      fetchReceipts();
+      setError(`Grouping "${groupKey}" saved successfully as receipts.`);
+    } catch (err) {
+      console.error('Failed to save grouping:', err);
+      setError(`Failed to save grouping "${groupKey}" as receipts. Please try again. ${err.message}`);
     }
-  }, [editingMapping, newKeyword, newDescription]);
+  };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -305,148 +342,6 @@ const fetchReceipts = async () => {
   const handleUploadClick = () => {
     fileInputRef.current?.click();
   };
-// Function to check for duplicate receipts
-const checkForDuplicateReceipt = (newReceipt: any, existingReceipts: Receipt[], items: any[]): boolean => {
-  return existingReceipts.some((receipt) => {
-    const isSameReceipt = (
-      receipt.storeName === newReceipt.storeName &&
-      receipt.totalAmount === newReceipt.totalAmount &&
-      new Date(receipt.date).toISOString().split('T')[0] === new Date(newReceipt.date).toISOString().split('T')[0]
-    );
-
-    if (!isSameReceipt) return false;
-
-    // Check if the items match (same item names, quantity, price, and inventoryId)
-    return items.every((item) => {
-      return receipt.receiptItems.some((existingItem) => {
-        return (
-          existingItem.name === item.name &&
-          existingItem.quantity === item.quantity &&
-          existingItem.totalPrice === item.totalPrice &&
-          existingItem.inventoryId === item.inventoryId
-        );
-      });
-    });
-  });
-};
-
-  const handleDeleteReceipt = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this receipt?')) return;
-
-    try {
-      const res = await fetch(`/api/receipts/${id}`, {
-        method: 'DELETE',
-      });
-
-      if (res.ok) {
-        fetchReceipts();
-      } else {
-        throw new Error('Failed to delete receipt');
-      }
-    } catch (error) {
-      console.error('Error deleting receipt:', error);
-      setError('Failed to delete receipt. Please try again.');
-    }
-  };
-
-  const toggleKeywordMappings = () => {
-    setShowKeywordMappings(!showKeywordMappings);
-  };
-
-  const createExpenseCategory = async (name: string): Promise<ExpenseCategory> => {
-    const res = await fetch('/api/expense-categories', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
-    });
-
-    if (!res.ok) throw new Error('Failed to create expense category');
-    const newCategory = await res.json();
-    setExpenseCategories([...expenseCategories, newCategory]);
-    return newCategory;
-  };
-
-  const handleSaveGrouping = async (groupKey: string) => {
-    try {
-      const group = groupedTransactions[groupKey];
-      let categoryId = selectedCategories[groupKey];
-  
-      if (!categoryId) {
-        throw new Error('Please select a category before saving.');
-      }
-  
-      // Ensure we have a Receipts inventory
-      if (!receiptsInventoryId) {
-        await ensureReceiptsInventory();
-      }
-  
-      // Group transactions by description
-      const transactionsByDescription = group.transactions.reduce((acc, transaction) => {
-        if (!acc[transaction.description]) {
-          acc[transaction.description] = [];
-        }
-        acc[transaction.description].push(transaction);
-        return acc;
-      }, {} as { [key: string]: ParsedTransaction[] });
-  
-      for (const [description, transactions] of Object.entries(transactionsByDescription)) {
-        const item = await ensureItemInInventory(description, receiptsInventoryId || "");
-  
-        if (!item) {
-          throw new Error(`Failed to process item for description: ${description}`);
-        }
-  
-        // Create a new receipt object to check for duplication
-        const newReceipt = {
-          storeName: groupKey,
-          totalAmount: Math.abs(group.totalAmount),
-          date: new Date(group.transactions[0].date).toISOString(),
-          items: transactions.map((transaction) => ({
-            itemId: item.id,
-            quantity: 1,
-            totalPrice: Math.abs(transaction.amount),
-            categoryId: categoryId,
-            name: description,
-            inventoryId: receiptsInventoryId,
-          }))
-        };
-  
-        // Check for duplicate receipts
-        const isDuplicate = checkForDuplicateReceipt(newReceipt, receipts, newReceipt.items);
-        if (isDuplicate) {
-          setError(`Duplicate receipt detected for store "${groupKey}" on date "${newReceipt.date}". No new entry created.`);
-          return;
-        }
-  
-        // Create the new receipt
-        const receiptRes = await fetch('/api/receipts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newReceipt),
-        });
-  
-        if (!receiptRes.ok) {
-          const errorText = await receiptRes.text();
-          throw new Error(`Failed to create receipt: ${errorText}`);
-        }
-      }
-  
-      // Remove the saved grouping from the state
-      const updatedGroupedTransactions = { ...groupedTransactions };
-      delete updatedGroupedTransactions[groupKey];
-      setGroupedTransactions(updatedGroupedTransactions);
-  
-      fetchReceipts();
-      setError(`Grouping "${groupKey}" saved successfully as receipts.`);
-    } catch (err) {
-      console.error('Failed to save grouping:', err);
-      setError(`Failed to save grouping "${groupKey}" as receipts. Please try again. ${err.message}`);
-    }
-  };
-  
-  
-  
-  
 
   const handleCategoryChange = async (groupKey: string, value: string) => {
     if (value === 'new') {
@@ -477,111 +372,6 @@ const checkForDuplicateReceipt = (newReceipt: any, existingReceipts: Receipt[], 
       ...prev,
       [transactionDescription]: inventoryId || receiptsInventoryId,
     }));
-  };
-
-  const ensureItemInInventory = async (description: string, inventoryId: string) => {
-    // No longer trimming or converting to lowercase
-    const rawDescription = description.trim();  // We'll only trim, but store and use the raw description
-  
-    console.log(`Checking for item with description: ${rawDescription} in inventory: ${inventoryId}`);
-    
-    // Fetch existing item based on raw description
-    const res = await fetch(`/api/items?description=${encodeURIComponent(rawDescription)}&inventoryId=${inventoryId}`);
-    
-    console.log('API Response:', res);
-    if (res.ok) {
-      const existingItem = await res.json();
-      console.log('Existing Item:', existingItem);
-      
-      if (existingItem.length > 0) {
-        return existingItem[0]; // Return the first matching item
-      }
-    }
-  
-    console.log('No item found, creating new item');
-    // Create a new item if no item was found
-    const newItemRes = await fetch('/api/items', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: rawDescription,  // Store the raw description as it is
-        inventoryId,
-        price: 0,
-        quantity: 1,
-      }),
-    });
-  
-    if (!newItemRes.ok) throw new Error('Failed to create item');
-    const newItem = await newItemRes.json();
-    console.log('Newly Created Item:', newItem);
-    return newItem;
-  };
-  
-  
-
-  
-  
-
-  const createReceiptForTransaction = async (transaction: ParsedTransaction, categoryId: string, storeName: string) => {
-    try {
-      // Ensure the date includes a time component
-      const transactionDate = `${transaction.date}T00:00:00`;
-  
-      const receiptData = {
-        storeName,
-        totalAmount: Math.abs(transaction.amount),
-        date: new Date(transactionDate).toISOString(),  // Ensure valid ISO date format with time
-        categoryId,
-      };
-  
-      const receiptRes = await fetch('/api/receipts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(receiptData),
-      });
-  
-      if (!receiptRes.ok) {
-        const errorText = await receiptRes.text();
-        throw new Error(`Failed to create receipt: ${errorText}`);
-      }
-  
-      return await receiptRes.json();
-    } catch (err) {
-      console.error('Error creating receipt:', err);
-      throw err;
-    }
-  };
-  
-  
-  
-  
-
-  const createReceiptItem = async (receiptId: string, itemId: string, totalPrice: number, categoryId: string) => {
-    try {
-      const receiptItemData = {
-        receiptId,
-        itemId,
-        quantity: 1,
-        totalPrice,
-        categoryId,
-      };
-
-      const receiptItemRes = await fetch('/api/receipt-items', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(receiptItemData),
-      });
-
-      if (!receiptItemRes.ok) {
-        const errorText = await receiptItemRes.text();
-        throw new Error(`Failed to create receipt item: ${errorText}`);
-      }
-
-      return await receiptItemRes.json();
-    } catch (err) {
-      console.error('Error creating receipt item:', err);
-      throw err;
-    }
   };
 
   if (status === 'loading') {
@@ -797,4 +587,5 @@ const checkForDuplicateReceipt = (newReceipt: any, existingReceipts: Receipt[], 
       </div>
     </div>
   );
+
 }

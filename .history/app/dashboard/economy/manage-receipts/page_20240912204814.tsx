@@ -130,18 +130,17 @@ export default function ManageReceipts() {
     }
   }, [keywordMappings, parsedTransactions]);
 
-const fetchReceipts = async () => {
-  try {
-    const res = await fetch('/api/receipts?includeItems=true'); // Make sure the API includes receipt items
-    if (!res.ok) throw new Error('Failed to fetch receipts');
-    const data = await res.json();
-    setReceipts(data);
-  } catch (err) {
-    console.error('Failed to fetch receipts:', err);
-    setError('Failed to load receipts. Please try again.');
-  }
-};
-
+  const fetchReceipts = async () => {
+    try {
+      const res = await fetch('/api/receipts');
+      if (!res.ok) throw new Error('Failed to fetch receipts');
+      const data = await res.json();
+      setReceipts(data);
+    } catch (err) {
+      console.error('Failed to fetch receipts:', err);
+      setError('Failed to load receipts. Please try again.');
+    }
+  };
 
   const fetchKeywordMappings = async () => {
     try {
@@ -305,30 +304,6 @@ const fetchReceipts = async () => {
   const handleUploadClick = () => {
     fileInputRef.current?.click();
   };
-// Function to check for duplicate receipts
-const checkForDuplicateReceipt = (newReceipt: any, existingReceipts: Receipt[], items: any[]): boolean => {
-  return existingReceipts.some((receipt) => {
-    const isSameReceipt = (
-      receipt.storeName === newReceipt.storeName &&
-      receipt.totalAmount === newReceipt.totalAmount &&
-      new Date(receipt.date).toISOString().split('T')[0] === new Date(newReceipt.date).toISOString().split('T')[0]
-    );
-
-    if (!isSameReceipt) return false;
-
-    // Check if the items match (same item names, quantity, price, and inventoryId)
-    return items.every((item) => {
-      return receipt.receiptItems.some((existingItem) => {
-        return (
-          existingItem.name === item.name &&
-          existingItem.quantity === item.quantity &&
-          existingItem.totalPrice === item.totalPrice &&
-          existingItem.inventoryId === item.inventoryId
-        );
-      });
-    });
-  });
-};
 
   const handleDeleteReceipt = async (id: string) => {
     if (!confirm('Are you sure you want to delete this receipt?')) return;
@@ -390,44 +365,49 @@ const checkForDuplicateReceipt = (newReceipt: any, existingReceipts: Receipt[], 
       }, {} as { [key: string]: ParsedTransaction[] });
   
       for (const [description, transactions] of Object.entries(transactionsByDescription)) {
-        const item = await ensureItemInInventory(description, receiptsInventoryId || "");
-  
-        if (!item) {
-          throw new Error(`Failed to process item for description: ${description}`);
-        }
-  
-        // Create a new receipt object to check for duplication
-        const newReceipt = {
-          storeName: groupKey,
-          totalAmount: Math.abs(group.totalAmount),
-          date: new Date(group.transactions[0].date).toISOString(),
-          items: transactions.map((transaction) => ({
-            itemId: item.id,
-            quantity: 1,
-            totalPrice: Math.abs(transaction.amount),
-            categoryId: categoryId,
-            name: description,
-            inventoryId: receiptsInventoryId,
-          }))
-        };
-  
-        // Check for duplicate receipts
-        const isDuplicate = checkForDuplicateReceipt(newReceipt, receipts, newReceipt.items);
-        if (isDuplicate) {
-          setError(`Duplicate receipt detected for store "${groupKey}" on date "${newReceipt.date}". No new entry created.`);
-          return;
-        }
-  
-        // Create the new receipt
-        const receiptRes = await fetch('/api/receipts', {
+        // Create an Item for each unique description
+        const itemRes = await fetch('/api/items', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newReceipt),
+          body: JSON.stringify({
+            name: description,               // Ensuring the name is passed
+            inventoryId: receiptsInventoryId, // Ensure inventoryId is passed
+            price: Math.abs(transactions[0].amount),
+            quantity: 1,
+          }),
         });
   
-        if (!receiptRes.ok) {
-          const errorText = await receiptRes.text();
-          throw new Error(`Failed to create receipt: ${errorText}`);
+        if (!itemRes.ok) throw new Error('Failed to create item');
+        const item = await itemRes.json();
+  
+        // Create a Receipt for each transaction
+        for (const transaction of transactions) {
+          const receiptData = {
+            storeName: groupKey,
+            totalAmount: Math.abs(transaction.amount),
+            date: new Date(transaction.date).toISOString(),
+            items: [
+              {
+                itemId: item.id,
+                quantity: 1,
+                totalPrice: Math.abs(transaction.amount),
+                categoryId: categoryId,
+                name: description,            // Pass the name for item creation
+                inventoryId: receiptsInventoryId, // Pass the inventory ID
+              },
+            ],
+          };
+  
+          const receiptRes = await fetch('/api/receipts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(receiptData),
+          });
+  
+          if (!receiptRes.ok) {
+            const errorText = await receiptRes.text();
+            throw new Error(`Failed to create receipt: ${errorText}`);
+          }
         }
       }
   
@@ -443,8 +423,6 @@ const checkForDuplicateReceipt = (newReceipt: any, existingReceipts: Receipt[], 
       setError(`Failed to save grouping "${groupKey}" as receipts. Please try again. ${err.message}`);
     }
   };
-  
-  
   
   
 
@@ -480,13 +458,12 @@ const checkForDuplicateReceipt = (newReceipt: any, existingReceipts: Receipt[], 
   };
 
   const ensureItemInInventory = async (description: string, inventoryId: string) => {
-    // No longer trimming or converting to lowercase
-    const rawDescription = description.trim();  // We'll only trim, but store and use the raw description
-  
-    console.log(`Checking for item with description: ${rawDescription} in inventory: ${inventoryId}`);
+    // Trim and convert the description to lowercase to ensure uniformity
+    const sanitizedDescription = description.trim().toLowerCase();
+
+    console.log(`Checking for item with description: ${sanitizedDescription} in inventory: ${inventoryId}`);
     
-    // Fetch existing item based on raw description
-    const res = await fetch(`/api/items?description=${encodeURIComponent(rawDescription)}&inventoryId=${inventoryId}`);
+    const res = await fetch(`/api/items?description=${encodeURIComponent(sanitizedDescription)}&inventoryId=${inventoryId}`);
     
     console.log('API Response:', res);
     if (res.ok) {
@@ -497,14 +474,14 @@ const checkForDuplicateReceipt = (newReceipt: any, existingReceipts: Receipt[], 
         return existingItem[0]; // Return the first matching item
       }
     }
-  
+
     console.log('No item found, creating new item');
     // Create a new item if no item was found
     const newItemRes = await fetch('/api/items', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: rawDescription,  // Store the raw description as it is
+        name: sanitizedDescription, // Always use the sanitized version
         inventoryId,
         price: 0,
         quantity: 1,
@@ -515,9 +492,7 @@ const checkForDuplicateReceipt = (newReceipt: any, existingReceipts: Receipt[], 
     const newItem = await newItemRes.json();
     console.log('Newly Created Item:', newItem);
     return newItem;
-  };
-  
-  
+};
 
   
   

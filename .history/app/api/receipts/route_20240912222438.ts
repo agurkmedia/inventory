@@ -14,7 +14,6 @@ export async function GET(req: Request) {
     const receipts = await prisma.receipt.findMany({
       where: { userId: session.user?.id },
       orderBy: { date: 'desc' },
-      include: { receiptItems: { include: { item: true } } }, // Include receipt items and related items
     });
 
     return NextResponse.json(receipts);
@@ -37,7 +36,7 @@ export async function POST(req: Request) {
     // Log the received items for debugging purposes
     console.log("Received Items:", items);
 
-    // Check if a receipt with the same storeName, totalAmount, and date already exists
+    // Check for existing receipt with same storeName, totalAmount, date
     const existingReceipt = await prisma.receipt.findFirst({
       where: {
         storeName,
@@ -48,29 +47,27 @@ export async function POST(req: Request) {
       include: {
         receiptItems: {
           include: {
-            item: true, // Include item details for duplication check
+            item: true, // Include item details to check item duplication
           },
         },
       },
     });
 
-    // If a receipt with the same details exists, check if the items match exactly
     if (existingReceipt) {
-      const existingItems = existingReceipt.receiptItems;
-
-      const allItemsMatch = items.every((newItem: any) => {
-        return existingItems.some((existingItem) => {
+      // Check if items match exactly (same name, quantity, price, and inventoryId)
+      const itemsMatch = items.every((item: any) => {
+        return existingReceipt.receiptItems.some((receiptItem) => {
           return (
-            existingItem.item.name === newItem.name &&
-            existingItem.quantity === newItem.quantity &&
-            existingItem.totalPrice === newItem.totalPrice &&
-            existingItem.item.inventoryId === newItem.inventoryId
+            receiptItem.item.name === item.name &&
+            receiptItem.quantity === item.quantity &&
+            receiptItem.totalPrice === item.totalPrice &&
+            receiptItem.item.inventoryId === item.inventoryId
           );
         });
       });
 
-      // If all items match, we consider it a duplicate receipt
-      if (allItemsMatch && items.length === existingItems.length) {
+      if (itemsMatch) {
+        // Duplicate receipt found, return with a conflict status
         return NextResponse.json(
           { message: "Duplicate receipt detected, no new entry created." },
           { status: 409 }
@@ -78,7 +75,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // No duplicates found, create a new receipt
+    // No duplicates found, create the receipt
     const receipt = await prisma.receipt.create({
       data: {
         storeName,

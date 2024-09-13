@@ -14,7 +14,6 @@ export async function GET(req: Request) {
     const receipts = await prisma.receipt.findMany({
       where: { userId: session.user?.id },
       orderBy: { date: 'desc' },
-      include: { receiptItems: { include: { item: true } } }, // Include receipt items and related items
     });
 
     return NextResponse.json(receipts);
@@ -37,48 +36,7 @@ export async function POST(req: Request) {
     // Log the received items for debugging purposes
     console.log("Received Items:", items);
 
-    // Check if a receipt with the same storeName, totalAmount, and date already exists
-    const existingReceipt = await prisma.receipt.findFirst({
-      where: {
-        storeName,
-        totalAmount,
-        date: new Date(date),
-        userId: session.user?.id,
-      },
-      include: {
-        receiptItems: {
-          include: {
-            item: true, // Include item details for duplication check
-          },
-        },
-      },
-    });
-
-    // If a receipt with the same details exists, check if the items match exactly
-    if (existingReceipt) {
-      const existingItems = existingReceipt.receiptItems;
-
-      const allItemsMatch = items.every((newItem: any) => {
-        return existingItems.some((existingItem) => {
-          return (
-            existingItem.item.name === newItem.name &&
-            existingItem.quantity === newItem.quantity &&
-            existingItem.totalPrice === newItem.totalPrice &&
-            existingItem.item.inventoryId === newItem.inventoryId
-          );
-        });
-      });
-
-      // If all items match, we consider it a duplicate receipt
-      if (allItemsMatch && items.length === existingItems.length) {
-        return NextResponse.json(
-          { message: "Duplicate receipt detected, no new entry created." },
-          { status: 409 }
-        );
-      }
-    }
-
-    // No duplicates found, create a new receipt
+    // Create a receipt first
     const receipt = await prisma.receipt.create({
       data: {
         storeName,
@@ -90,32 +48,39 @@ export async function POST(req: Request) {
 
     // Ensure items are provided and are an array
     if (items && Array.isArray(items)) {
+      // Loop through each item to ensure data integrity
       for (const item of items) {
+        // Log the individual item data
+        console.log("Processing item:", item);
+
         // Validate required fields for new item creation
-        if (!item.name || !item.inventoryId) {
-          throw new Error("Missing required fields: name or inventoryId.");
+        if (!item.itemId && (!item.name || !item.inventoryId)) {
+          console.error("Missing required fields: itemId, name, or inventoryId for item:", item);
+          throw new Error("Missing required fields: itemId, name, or inventoryId.");
         }
 
-        const trimmedName = item.name.trim();
+        let connectedItem;
 
-        // Check if an item with the same name and inventoryId already exists
-        let connectedItem = await prisma.item.findFirst({
-          where: {
-            name: trimmedName,
-            inventoryId: item.inventoryId,
-          },
-        });
-
-        if (!connectedItem) {
-          // Create a new item if it doesn't exist
+        // If itemId is not provided, create a new item
+        if (!item.itemId) {
+          console.log("Creating new item with name:", item.name, "and inventoryId:", item.inventoryId);
           connectedItem = await prisma.item.create({
             data: {
-              name: trimmedName,
-              inventoryId: item.inventoryId,
-              price: item.totalPrice,
+              name: item.name, // Ensure name is provided when creating a new item
+              inventoryId: item.inventoryId, // Ensure inventoryId is provided when creating a new item
+              price: item.totalPrice, // Set initial price (optional, can be updated later)
               quantity: item.quantity,
             },
           });
+        } else {
+          // If itemId exists, connect to the existing item
+          connectedItem = await prisma.item.findUnique({
+            where: { id: item.itemId },
+          });
+          if (!connectedItem) {
+            console.error("Item with id:", item.itemId, "not found");
+            throw new Error(`Item with id ${item.itemId} not found`);
+          }
         }
 
         // Create each receipt item
@@ -127,7 +92,7 @@ export async function POST(req: Request) {
               connect: { id: item.categoryId }, // Connect the category by its ID
             },
             item: {
-              connect: { id: connectedItem.id }, // Connect to the existing or newly created item
+              connect: { id: connectedItem.id }, // Either use the newly created or existing item
             },
             receipt: {
               connect: { id: receipt.id }, // Associate with the newly created receipt

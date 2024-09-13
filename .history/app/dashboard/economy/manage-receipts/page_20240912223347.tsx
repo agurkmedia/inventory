@@ -130,18 +130,18 @@ export default function ManageReceipts() {
     }
   }, [keywordMappings, parsedTransactions]);
 
-const fetchReceipts = async () => {
-  try {
-    const res = await fetch('/api/receipts?includeItems=true'); // Make sure the API includes receipt items
-    if (!res.ok) throw new Error('Failed to fetch receipts');
-    const data = await res.json();
-    setReceipts(data);
-  } catch (err) {
-    console.error('Failed to fetch receipts:', err);
-    setError('Failed to load receipts. Please try again.');
-  }
-};
-
+  const fetchReceipts = async () => {
+    try {
+      const res = await fetch('/api/receipts?includeItems=true'); // Make sure the API includes receipt items
+      if (!res.ok) throw new Error('Failed to fetch receipts');
+      const data = await res.json();
+      setReceipts(data);
+    } catch (err) {
+      console.error('Failed to fetch receipts:', err);
+      setError('Failed to load receipts. Please try again.');
+    }
+  };
+  
 
   const fetchKeywordMappings = async () => {
     try {
@@ -389,46 +389,53 @@ const checkForDuplicateReceipt = (newReceipt: any, existingReceipts: Receipt[], 
         return acc;
       }, {} as { [key: string]: ParsedTransaction[] });
   
+      // Validate and deduplicate the items before sending
+      const itemsToPost = [];
       for (const [description, transactions] of Object.entries(transactionsByDescription)) {
+        // Ensure we await the check for the existing item before continuing
         const item = await ensureItemInInventory(description, receiptsInventoryId || "");
   
         if (!item) {
           throw new Error(`Failed to process item for description: ${description}`);
         }
   
-        // Create a new receipt object to check for duplication
-        const newReceipt = {
-          storeName: groupKey,
-          totalAmount: Math.abs(group.totalAmount),
-          date: new Date(group.transactions[0].date).toISOString(),
-          items: transactions.map((transaction) => ({
-            itemId: item.id,
-            quantity: 1,
-            totalPrice: Math.abs(transaction.amount),
-            categoryId: categoryId,
-            name: description,
-            inventoryId: receiptsInventoryId,
-          }))
-        };
-  
-        // Check for duplicate receipts
-        const isDuplicate = checkForDuplicateReceipt(newReceipt, receipts, newReceipt.items);
-        if (isDuplicate) {
-          setError(`Duplicate receipt detected for store "${groupKey}" on date "${newReceipt.date}". No new entry created.`);
-          return;
-        }
-  
-        // Create the new receipt
-        const receiptRes = await fetch('/api/receipts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newReceipt),
+        // Deduplicate item by description, price, and quantity
+        const uniqueItems = new Map();
+        transactions.forEach((transaction) => {
+          const key = `${description}-${transaction.amount}`;
+          if (!uniqueItems.has(key)) {
+            uniqueItems.set(key, {
+              itemId: item.id,
+              quantity: 1,
+              totalPrice: Math.abs(transaction.amount),
+              categoryId: categoryId,
+              name: description,
+              inventoryId: receiptsInventoryId,
+            });
+          }
         });
   
-        if (!receiptRes.ok) {
-          const errorText = await receiptRes.text();
-          throw new Error(`Failed to create receipt: ${errorText}`);
-        }
+        // Push the deduplicated items to post
+        uniqueItems.forEach((itemData) => itemsToPost.push(itemData));
+      }
+  
+      // Now post the deduplicated items to the API
+      const receiptData = {
+        storeName: groupKey,
+        totalAmount: itemsToPost.reduce((sum, item) => sum + item.totalPrice, 0),
+        date: new Date(group.transactions[0].date).toISOString(),
+        items: itemsToPost,
+      };
+  
+      const receiptRes = await fetch('/api/receipts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(receiptData),
+      });
+  
+      if (!receiptRes.ok) {
+        const errorText = await receiptRes.text();
+        throw new Error(`Failed to create receipt: ${errorText}`);
       }
   
       // Remove the saved grouping from the state
@@ -443,6 +450,7 @@ const checkForDuplicateReceipt = (newReceipt: any, existingReceipts: Receipt[], 
       setError(`Failed to save grouping "${groupKey}" as receipts. Please try again. ${err.message}`);
     }
   };
+  
   
   
   
