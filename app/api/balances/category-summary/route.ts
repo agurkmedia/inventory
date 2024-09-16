@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/authOptions';
-import { addDays, addWeeks, addMonths, addYears, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
+import { addDays, addWeeks, addMonths, addYears, startOfMonth, endOfMonth, startOfYear, endOfYear, subYears } from 'date-fns';
 
 // Function to get the next recurrence date using date-fns for safer date manipulation
 function getNextRecurrenceDate(date: Date, interval: string | null): Date {
@@ -35,24 +35,70 @@ export async function GET(req: Request) {
     }
 
     const url = new URL(req.url);
-    const month = url.searchParams.get('month');
+    const mode = url.searchParams.get('mode') || 'monthly';
     const year = url.searchParams.get('year');
-    const mode = url.searchParams.get('mode') || 'monthly'; // New parameter to decide between 'monthly' and 'yearly'
-
-    if (!year || (!month && mode === 'monthly')) {
-        return NextResponse.json({ error: 'Year and month are required for monthly aggregation' }, { status: 400 });
-    }
+    const month = url.searchParams.get('month');
+    const startDateParam = url.searchParams.get('startDate');
+    const endDateParam = url.searchParams.get('endDate');
 
     try {
-        // Define the date range for the selected mode
-        let startDate, endDate;
+        let startDate: Date, endDate: Date;
 
-        if (mode === 'yearly') {
-            startDate = new Date(parseInt(year), 0, 1); // January 1st of the selected year
-            endDate = new Date(parseInt(year), 11, 31); // December 31st of the selected year
-        } else {
-            startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-            endDate = endOfMonth(startDate);
+        switch (mode) {
+            case 'monthly':
+                if (!year || !month) {
+                    return NextResponse.json({ error: 'Year and month are required for monthly mode' }, { status: 400 });
+                }
+                startDate = startOfMonth(new Date(parseInt(year), parseInt(month) - 1));
+                endDate = endOfMonth(startDate);
+                break;
+            case 'yearly':
+                if (!year) {
+                    return NextResponse.json({ error: 'Year is required for yearly mode' }, { status: 400 });
+                }
+                startDate = startOfYear(new Date(parseInt(year), 0));
+                endDate = endOfYear(startDate);
+                break;
+            case 'last12months':
+                if (!startDateParam || !endDateParam) {
+                    return NextResponse.json({ error: 'Start and end dates are required for last12months mode' }, { status: 400 });
+                }
+                startDate = new Date(startDateParam);
+                endDate = new Date(endDateParam);
+                break;
+            case 'allTime':
+                // Find the earliest date among incomes, expenses, and receipts
+                const earliestIncome = await prisma.income.findFirst({
+                    orderBy: { date: 'asc' },
+                    select: { date: true },
+                    where: { userId: session.user?.id }
+                });
+                const earliestExpense = await prisma.expense.findFirst({
+                    orderBy: { date: 'asc' },
+                    select: { date: true },
+                    where: { userId: session.user?.id }
+                });
+                const earliestReceipt = await prisma.receiptItem.findFirst({
+                    orderBy: { date: 'asc' },
+                    select: { date: true },
+                    where: { receipt: { userId: session.user?.id } }
+                });
+
+                startDate = new Date(Math.min(
+                    earliestIncome?.date?.getTime() ?? Infinity,
+                    earliestExpense?.date?.getTime() ?? Infinity,
+                    earliestReceipt?.date?.getTime() ?? Infinity
+                ));
+                
+                // If no data found, set startDate to current date to avoid invalid date
+                if (!isFinite(startDate.getTime())) {
+                    startDate = new Date();
+                }
+
+                endDate = new Date(); // Current date
+                break;
+            default:
+                return NextResponse.json({ error: 'Invalid mode' }, { status: 400 });
         }
 
         let totalIncome = 0;
@@ -174,9 +220,16 @@ export async function GET(req: Request) {
             }
         });
 
-        // Create the aggregated data
+        // Modify the aggregatedData to include totalDays and totalMonths
+        const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        const totalMonths = Math.ceil(totalDays / 30.44); // Average days in a month
+
         const aggregatedData = [{
             period: startDate.toISOString(),
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString(),
+            totalDays,
+            totalMonths,
             incomes: {
                 total: roundToTwoDecimals(totalIncome),
                 breakdown: incomeBreakdown,

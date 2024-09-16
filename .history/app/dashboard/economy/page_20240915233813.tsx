@@ -489,6 +489,22 @@ export default function EconomyAndBudget() {
 
   const renderReceiptStackedBarChart = () => {
     if (!categorySummary.data || categorySummary.data.length === 0 || !categorySummary.data[0].expenses.breakdown) {
+    return sortedData.map((item, index) => (
+      <tr key={index}>
+        <td className="border px-4 py-2">{item.category}</td>
+        <td className="border px-4 py-2">${item.amount.toFixed(2)}</td>
+        {viewMode.mode !== 'monthly' && (
+          <>
+            <td className="border px-4 py-2">${item.monthlyCost.toFixed(2)}</td>
+            <td className="border px-4 py-2">${item.dailyCost.toFixed(2)}</td>
+          </>
+        )}
+      </tr>
+    ));
+  };
+
+  const renderReceiptStackedBarChart = () => {
+    if (!categorySummary.data || categorySummary.data.length === 0 || !categorySummary.data[0].expenses.breakdown) {
       return <p className="text-white">No expense data available</p>;
     }
 
@@ -782,18 +798,6 @@ export default function EconomyAndBudget() {
                 </tbody>
               </table>
             </div>
-            {accumulatedExpenses && (
-              <div className="mt-4 p-4 bg-blue-500 bg-opacity-20 rounded">
-                <h4 className="text-white font-semibold mb-2">Accumulated Expenses</h4>
-                <p className="text-white">Total: ${accumulatedExpenses.amount.toFixed(2)}</p>
-                {viewMode.mode !== 'monthly' && (
-                  <>
-                    <p className="text-white">Monthly Cost: ${accumulatedExpenses.monthlyCost.toFixed(2)}</p>
-                    <p className="text-white">Daily Cost: ${accumulatedExpenses.dailyCost.toFixed(2)}</p>
-                  </>
-                )}
-              </div>
-            )}
           </>
         )}
       </div>

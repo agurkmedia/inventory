@@ -791,9 +791,6 @@ export default function EconomyAndBudget() {
                     <p className="text-white">Monthly Cost: ${accumulatedExpenses.monthlyCost.toFixed(2)}</p>
                     <p className="text-white">Daily Cost: ${accumulatedExpenses.dailyCost.toFixed(2)}</p>
                   </>
-                )}
-              </div>
-            )}
           </>
         )}
       </div>

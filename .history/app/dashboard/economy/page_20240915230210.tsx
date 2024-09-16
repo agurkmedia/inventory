@@ -57,23 +57,12 @@ interface CategorySummary {
     expenses: { total: number; breakdown: { [key: string]: number } };
     receipts: { total: number; breakdown: { [key: string]: number } };
     balance: number;
-    startDate?: string;
-    endDate?: string;
-    totalDays?: number;
-    totalMonths?: number;
   }>;
 }
 
 interface ViewMode {
   mode: 'monthly' | 'yearly' | 'last12months' | 'allTime';
   label: string;
-}
-
-interface ExpenseItem {
-  category: string;
-  amount: number;
-  monthlyCost: number;
-  dailyCost: number;
 }
 
 export default function EconomyAndBudget() {
@@ -94,15 +83,12 @@ export default function EconomyAndBudget() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [collapsedSections, setCollapsedSections] = useState({
     financialSummary: false,
-    expenseBreakdownChart: false,
     expenseBreakdown: false,
     dailyBalance: false,
     dailyBalanceTable: false,
   });
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
-  const [selectedExpenses, setSelectedExpenses] = useState<Set<string>>(new Set());
-  const [accumulatedExpenses, setAccumulatedExpenses] = useState<ExpenseItem | null>(null);
 
   useEffect(() => {
     if (status === 'authenticated' && !initializeRef.current) {
@@ -160,7 +146,7 @@ export default function EconomyAndBudget() {
         const endDate = new Date();
         const startDate = new Date(endDate);
         startDate.setFullYear(startDate.getFullYear() - 1);
-        url += `startDate=${startDate.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}&mode=last12months`;
+        url += `startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}&mode=custom`;
       } else if (viewMode.mode === 'allTime') {
         url += `mode=allTime`;
       }
@@ -374,64 +360,18 @@ export default function EconomyAndBudget() {
     return <Bar data={chartData} options={options} />;
   };
 
-  const calculateAccumulatedExpenses = (selected: Set<string>, data: ExpenseItem[]) => {
-    const accumulated = data.reduce((acc, item) => {
-      if (selected.has(item.category)) {
-        acc.amount += item.amount;
-        acc.monthlyCost += item.monthlyCost;
-        acc.dailyCost += item.dailyCost;
-      }
-      return acc;
-    }, { category: 'Accumulated', amount: 0, monthlyCost: 0, dailyCost: 0 });
-
-    setAccumulatedExpenses(accumulated);
-  };
-
   const renderReceiptBreakdown = () => {
     if (!categorySummary.data || categorySummary.data.length === 0 || !categorySummary.data[0].expenses.breakdown) {
       return (
         <tr>
-          <td colSpan={viewMode.mode === 'monthly' ? 2 : 4} className="border px-4 py-2 text-center">No expense data available</td>
+          <td colSpan={2} className="border px-4 py-2 text-center">No expense data available</td>
         </tr>
       );
     }
 
     const expenseBreakdown = categorySummary.data[0].expenses.breakdown;
     
-    let sortedData = Object.entries(expenseBreakdown).map(([category, amount]) => ({ 
-      category, 
-      amount: Math.abs(amount as number),
-      monthlyCost: 0,
-      dailyCost: 0
-    }));
-
-    // Calculate monthly and daily costs for non-monthly view modes
-    if (viewMode.mode !== 'monthly') {
-      let totalDays = 0;
-      let totalMonths = 0;
-
-      switch (viewMode.mode) {
-        case 'yearly':
-          totalDays = 365;
-          totalMonths = 12;
-          break;
-        case 'last12months':
-          totalDays = 365;
-          totalMonths = 12;
-          break;
-        case 'allTime':
-          // Use the totalDays and totalMonths from the API response
-          totalDays = categorySummary.data[0].totalDays || 1; // Fallback to 1 to avoid division by zero
-          totalMonths = categorySummary.data[0].totalMonths || 1;
-          break;
-      }
-
-      sortedData = sortedData.map(item => ({
-        ...item,
-        monthlyCost: item.amount / totalMonths,
-        dailyCost: item.amount / totalDays
-      }));
-    }
+    let sortedData = Object.entries(expenseBreakdown).map(([category, amount]) => ({ category, amount: Math.abs(amount as number) }));
 
     // Sort the data
     sortedData.sort((a, b) => {
@@ -447,44 +387,12 @@ export default function EconomyAndBudget() {
       sortedData = sortedData.filter(item => item.category !== "Huslån");
     }
 
-    const sortedDataWithSelection = sortedData.map(item => ({
-      ...item,
-      isSelected: selectedExpenses.has(item.category)
-    }));
-
-    return (
-      <>
-        {sortedDataWithSelection.map((item, index) => (
-          <tr key={index} className={item.isSelected ? 'bg-blue-500 bg-opacity-50' : ''}>
-            <td className="border px-4 py-2">
-              <input
-                type="checkbox"
-                checked={item.isSelected}
-                onChange={() => {
-                  const newSelected = new Set(selectedExpenses);
-                  if (item.isSelected) {
-                    newSelected.delete(item.category);
-                  } else {
-                    newSelected.add(item.category);
-                  }
-                  setSelectedExpenses(newSelected);
-                  calculateAccumulatedExpenses(newSelected, sortedData);
-                }}
-                className="mr-2"
-              />
-              {item.category}
-            </td>
-            <td className="border px-4 py-2">${item.amount.toFixed(2)}</td>
-            {viewMode.mode !== 'monthly' && (
-              <>
-                <td className="border px-4 py-2">${item.monthlyCost.toFixed(2)}</td>
-                <td className="border px-4 py-2">${item.dailyCost.toFixed(2)}</td>
-              </>
-            )}
-          </tr>
-        ))}
-      </>
-    );
+    return sortedData.map((item, index) => (
+      <tr key={index}>
+        <td className="border px-4 py-2">{item.category}</td>
+        <td className="border px-4 py-2">${item.amount.toFixed(2)}</td>
+      </tr>
+    ));
   };
 
   const renderReceiptStackedBarChart = () => {
@@ -706,22 +614,7 @@ export default function EconomyAndBudget() {
         )}
       </div>
 
-      {/* New Expense Breakdown Chart Section */}
-      <div className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-lg p-4 shadow-md">
-        <div className="flex justify-between items-center cursor-pointer" onClick={() => toggleSection('expenseBreakdownChart')}>
-          <h3 className="text-lg font-semibold text-white">Expense Breakdown Chart</h3>
-          <span className="text-white text-xl">
-            {collapsedSections.expenseBreakdownChart ? '▼' : '▲'}
-          </span>
-        </div>
-        {!collapsedSections.expenseBreakdownChart && (
-          <div className="mt-4">
-            {renderReceiptStackedBarChart()}
-          </div>
-        )}
-      </div>
-
-      {/* Modified Expense Breakdown Section */}
+      {/* Receipt Breakdown */}
       <div className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-lg p-4 shadow-md">
         <div className="flex justify-between items-center cursor-pointer" onClick={() => toggleSection('expenseBreakdown')}>
           <h3 className="text-lg font-semibold text-white">Expense Breakdown</h3>
@@ -763,37 +656,24 @@ export default function EconomyAndBudget() {
                 </button>
               </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-white">
-                <thead>
-                  <tr>
-                    <th className="px-4 py-2">Category</th>
-                    <th className="px-4 py-2">Amount</th>
-                    {viewMode.mode !== 'monthly' && (
-                      <>
-                        <th className="px-4 py-2">Monthly Cost</th>
-                        <th className="px-4 py-2">Daily Cost</th>
-                      </>
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {renderReceiptBreakdown()}
-                </tbody>
-              </table>
-            </div>
-            {accumulatedExpenses && (
-              <div className="mt-4 p-4 bg-blue-500 bg-opacity-20 rounded">
-                <h4 className="text-white font-semibold mb-2">Accumulated Expenses</h4>
-                <p className="text-white">Total: ${accumulatedExpenses.amount.toFixed(2)}</p>
-                {viewMode.mode !== 'monthly' && (
-                  <>
-                    <p className="text-white">Monthly Cost: ${accumulatedExpenses.monthlyCost.toFixed(2)}</p>
-                    <p className="text-white">Daily Cost: ${accumulatedExpenses.dailyCost.toFixed(2)}</p>
-                  </>
-                )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-white">
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-2">Category</th>
+                      <th className="px-4 py-2">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {renderReceiptBreakdown()}
+                  </tbody>
+                </table>
               </div>
-            )}
+              <div className="h-120">
+                {renderReceiptStackedBarChart()}
+              </div>
+            </div>
           </>
         )}
       </div>
