@@ -105,7 +105,6 @@ export default function EconomyAndBudget() {
     expenseBreakdown: false,
     dailyBalance: false,
     dailyBalanceTable: false,
-    netIncomeExpenseChart: false,
   });
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
