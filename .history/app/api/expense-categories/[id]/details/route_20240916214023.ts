@@ -12,7 +12,6 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
   try {
     const categoryId = params.id;
-    console.log('Fetching details for category:', categoryId);
 
     const category = await prisma.expenseCategory.findUnique({
       where: { id: categoryId },
@@ -20,32 +19,19 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
         receiptItems: {
           select: {
             id: true,
+            name: true,
             quantity: true,
             totalPrice: true,
             date: true,
             categoryId: true,
-            item: {
-              select: {
-                name: true
-              }
-            },
-            receipt: {
-              select: {
-                id: true
-              }
-            }
           },
         },
       },
     });
 
     if (!category) {
-      console.log('Category not found');
       return NextResponse.json({ error: 'Category not found' }, { status: 404 });
     }
-
-    console.log('Category found:', category.name);
-    console.log('Number of receipt items:', category.receiptItems.length);
 
     const categoryDetails = {
       id: category.id,
@@ -54,16 +40,13 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       totalCost: category.receiptItems.reduce((sum, item) => sum + item.totalPrice, 0),
       items: category.receiptItems.map(item => ({
         id: item.id,
-        name: item.item.name, // This is the item name we'll use for comparison
+        name: item.name,
         quantity: item.quantity,
         price: item.totalPrice,
         date: item.date.toISOString(),
         categoryId: item.categoryId,
-        receiptId: item.receipt.id,
       })),
     };
-
-    console.log('Sending category details:', JSON.stringify(categoryDetails, null, 2));
 
     return NextResponse.json(categoryDetails);
   } catch (error) {

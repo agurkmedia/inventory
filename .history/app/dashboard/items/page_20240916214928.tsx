@@ -479,7 +479,7 @@ export default function Items() {
                     {selectedCategoryDetails.items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((item) => (
                       <tr 
                         key={item.id} 
-                        className={`border-b ${highlightedItem && item.name === highlightedItem.name ? 'highlight-breathe' : ''}`}
+                        className={`border-b ${highlightedItem && item.name === highlightedItem.name ? 'bg-green-100' : ''}`}
                       >
                         <td className="p-2">{new Date(item.date).toLocaleDateString()}</td>
                         <td className="p-2">{item.name}</td>
@@ -537,8 +537,8 @@ export default function Items() {
 
       <style jsx global>{`
         @keyframes breathe {
-          0%, 100% { background-color: rgba(0, 128, 0, 0.2); }
-          50% { background-color: rgba(0, 128, 0, 0.4); }
+          0%, 100% { background-color: rgba(0, 255, 0, 0.1); }
+          50% { background-color: rgba(0, 255, 0, 0.2); }
         }
         .highlight-breathe {
           animation: breathe 2s ease-in-out infinite;

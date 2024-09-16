@@ -539,6 +539,8 @@ export default function Items() {
         @keyframes breathe {
           0%, 100% { background-color: rgba(0, 128, 0, 0.2); }
           50% { background-color: rgba(0, 128, 0, 0.4); }
+          0%, 100% { background-color: rgba(0, 255, 0, 0.1); }
+          50% { background-color: rgba(0, 255, 0, 0.2); }
         }
         .highlight-breathe {
           animation: breathe 2s ease-in-out infinite;

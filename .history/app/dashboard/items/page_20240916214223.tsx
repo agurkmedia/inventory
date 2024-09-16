@@ -55,7 +55,7 @@ interface ExpenseCategory {
   }[];
 }
 
-function ItemCard({ item, onDelete, onViewCategory }: { item: Item, onDelete: (id: string) => void, onViewCategory: (categoryId: string, itemName: string) => void }) {
+function ItemCard({ item, onDelete, onViewCategory }: { item: Item, onDelete: (id: string) => void, onViewCategory: (categoryId: string, itemId: string) => void }) {
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
 
   const handleDelete = () => {
@@ -100,7 +100,7 @@ function ItemCard({ item, onDelete, onViewCategory }: { item: Item, onDelete: (i
         {categories.map(category => (
           <button
             key={category!.id}
-            onClick={() => onViewCategory(category!.id, item.name)}
+            onClick={() => onViewCategory(category!.id, item.id)}
             className="text-green-400 hover:text-green-300 text-sm"
           >
             View Category
@@ -208,7 +208,7 @@ export default function Items() {
   const [searchTerm, setSearchTerm] = useState('');
   const { data: session, status } = useSession();
   const [selectedCategoryDetails, setSelectedCategoryDetails] = useState<CategoryDetails | null>(null);
-  const [highlightedItem, setHighlightedItem] = useState<{ name: string } | null>(null);
+  const [highlightedItem, setHighlightedItem] = useState<{ name: string; price: number } | null>(null);
   const [allCategories, setAllCategories] = useState<ExpenseCategory[]>([]);
   const [itemCategoryChanges, setItemCategoryChanges] = useState<{[key: string]: string}>({});
   const [error, setError] = useState('');
@@ -280,7 +280,7 @@ export default function Items() {
     }
   };
 
-  const handleViewCategory = async (categoryId: string, itemName: string) => {
+  const handleViewCategory = async (categoryId: string, itemName: string, itemPrice: number) => {
     try {
       console.log('Fetching category details for:', categoryId);
       const res = await fetch(`/api/expense-categories/${categoryId}/details`);
@@ -291,7 +291,7 @@ export default function Items() {
       const details: CategoryDetails = await res.json();
       console.log('Received category details:', details);
       setSelectedCategoryDetails(details);
-      setHighlightedItem({ name: itemName });
+      setHighlightedItem({ name: itemName, price: itemPrice });
     } catch (error) {
       console.error('Error fetching category details:', error);
       setError('Failed to fetch category details. Please try again.');
@@ -317,7 +317,7 @@ export default function Items() {
 
       // Refresh the category details
       if (selectedCategoryDetails) {
-        await handleViewCategory(selectedCategoryDetails.id, '');
+        await handleViewCategory(selectedCategoryDetails.id, '', 0);
       }
 
       // Clear the change for this item
@@ -422,7 +422,7 @@ export default function Items() {
                     key={item.id} 
                     item={item} 
                     onDelete={handleDeleteItem} 
-                    onViewCategory={(categoryId) => handleViewCategory(categoryId, item.name)} 
+                    onViewCategory={(categoryId) => handleViewCategory(categoryId, item.name, item.price)} 
                   />
                 ))}
               </div>
@@ -462,60 +462,56 @@ export default function Items() {
               <p>Total Cost: {selectedCategoryDetails.totalCost.toFixed(2)} NOK</p>
             </div>
             <h3 className="text-xl font-semibold mt-4 mb-2">Items:</h3>
-            {selectedCategoryDetails.items && selectedCategoryDetails.items.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th className="text-left p-2">Date</th>
-                      <th className="text-left p-2">Name</th>
-                      <th className="text-right p-2">Quantity</th>
-                      <th className="text-right p-2">Price</th>
-                      <th className="text-center p-2">Category</th>
-                      <th className="text-center p-2">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedCategoryDetails.items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((item) => (
-                      <tr 
-                        key={item.id} 
-                        className={`border-b ${highlightedItem && item.name === highlightedItem.name ? 'highlight-breathe' : ''}`}
-                      >
-                        <td className="p-2">{new Date(item.date).toLocaleDateString()}</td>
-                        <td className="p-2">{item.name}</td>
-                        <td className="text-right p-2">{item.quantity}</td>
-                        <td className="text-right p-2">{item.price.toFixed(2)} NOK</td>
-                        <td className="text-center p-2">
-                          <select
-                            value={itemCategoryChanges[item.id] || item.categoryId}
-                            onChange={(e) => handleCategoryChange(item.id, e.target.value)}
-                            className="border rounded p-1 text-sm w-full"
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="text-left p-2">Date</th>
+                    <th className="text-left p-2">Name</th>
+                    <th className="text-right p-2">Quantity</th>
+                    <th className="text-right p-2">Price</th>
+                    <th className="text-center p-2">Category</th>
+                    <th className="text-center p-2">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedCategoryDetails.items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((item) => (
+                    <tr 
+                      key={item.id} 
+                      className={`border-b ${highlightedItem && item.name === highlightedItem.name && item.price === highlightedItem.price ? 'bg-green-100' : ''}`}
+                    >
+                      <td className="p-2">{new Date(item.date).toLocaleDateString()}</td>
+                      <td className="p-2">{item.name}</td>
+                      <td className="text-right p-2">{item.quantity}</td>
+                      <td className="text-right p-2">{item.price.toFixed(2)} NOK</td>
+                      <td className="text-center p-2">
+                        <select
+                          value={itemCategoryChanges[item.id] || item.categoryId}
+                          onChange={(e) => handleCategoryChange(item.id, e.target.value)}
+                          className="border rounded p-1 text-sm w-full"
+                        >
+                          {allCategories.map((category) => (
+                            <option key={category.id} value={category.id}>
+                              {category.name}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="text-center p-2">
+                        {itemCategoryChanges[item.id] && (
+                          <button
+                            onClick={() => handleSaveCategoryChange(item.id)}
+                            className="bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded text-sm"
                           >
-                            {allCategories.map((category) => (
-                              <option key={category.id} value={category.id}>
-                                {category.name}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="text-center p-2">
-                          {itemCategoryChanges[item.id] && (
-                            <button
-                              onClick={() => handleSaveCategoryChange(item.id)}
-                              className="bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded text-sm"
-                            >
-                              Save
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p>No items found for this category.</p>
-            )}
+                            Save
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             <button
               onClick={() => {
                 setSelectedCategoryDetails(null);
@@ -537,8 +533,8 @@ export default function Items() {
 
       <style jsx global>{`
         @keyframes breathe {
-          0%, 100% { background-color: rgba(0, 128, 0, 0.2); }
-          50% { background-color: rgba(0, 128, 0, 0.4); }
+          0%, 100% { background-color: rgba(0, 255, 0, 0.1); }
+          50% { background-color: rgba(0, 255, 0, 0.2); }
         }
         .highlight-breathe {
           animation: breathe 2s ease-in-out infinite;

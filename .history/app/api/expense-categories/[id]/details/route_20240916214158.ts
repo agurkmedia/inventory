@@ -20,20 +20,11 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
         receiptItems: {
           select: {
             id: true,
+            name: true,
             quantity: true,
             totalPrice: true,
             date: true,
             categoryId: true,
-            item: {
-              select: {
-                name: true
-              }
-            },
-            receipt: {
-              select: {
-                id: true
-              }
-            }
           },
         },
       },
@@ -54,12 +45,11 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       totalCost: category.receiptItems.reduce((sum, item) => sum + item.totalPrice, 0),
       items: category.receiptItems.map(item => ({
         id: item.id,
-        name: item.item.name, // This is the item name we'll use for comparison
+        name: item.name,
         quantity: item.quantity,
         price: item.totalPrice,
         date: item.date.toISOString(),
         categoryId: item.categoryId,
-        receiptId: item.receipt.id,
       })),
     };
 

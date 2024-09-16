@@ -54,7 +54,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       totalCost: category.receiptItems.reduce((sum, item) => sum + item.totalPrice, 0),
       items: category.receiptItems.map(item => ({
         id: item.id,
-        name: item.item.name, // This is the item name we'll use for comparison
+        name: item.item.name, // Get the name from the related Item
         quantity: item.quantity,
         price: item.totalPrice,
         date: item.date.toISOString(),

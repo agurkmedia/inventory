@@ -44,18 +44,16 @@ interface ExpenseCategory {
   name: string;
   itemCount: number;
   totalCost: number;
-  highlightedItemId?: string;
-  items?: {
+  items: {
     id: string;
     name: string;
     quantity: number;
     price: number;
     date: string;
-    categoryId: string;
   }[];
 }
 
-function ItemCard({ item, onDelete, onViewCategory }: { item: Item, onDelete: (id: string) => void, onViewCategory: (categoryId: string, itemName: string) => void }) {
+function ItemCard({ item, onDelete, onViewCategory }: { item: Item, onDelete: (id: string) => void, onViewCategory: (categoryId: string) => void }) {
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
 
   const handleDelete = () => {
@@ -100,7 +98,7 @@ function ItemCard({ item, onDelete, onViewCategory }: { item: Item, onDelete: (i
         {categories.map(category => (
           <button
             key={category!.id}
-            onClick={() => onViewCategory(category!.id, item.name)}
+            onClick={() => onViewCategory(category!.id)}
             className="text-green-400 hover:text-green-300 text-sm"
           >
             View Category
@@ -186,37 +184,17 @@ function NewItemCard() {
   );
 }
 
-interface CategoryDetails {
-  id: string;
-  name: string;
-  itemCount: number;
-  totalCost: number;
-  items: {
-    id: string;
-    name: string;
-    quantity: number;
-    price: number;
-    date: string;
-    categoryId: string;
-  }[];
-}
-
 export default function Items() {
   const [inventories, setInventories] = useState<Inventory[]>([]);
   const [displayMode, setDisplayMode] = useState<'all' | 'items' | 'scrapings'>('all');
   const [selectedInventories, setSelectedInventories] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const { data: session, status } = useSession();
-  const [selectedCategoryDetails, setSelectedCategoryDetails] = useState<CategoryDetails | null>(null);
-  const [highlightedItem, setHighlightedItem] = useState<{ name: string } | null>(null);
-  const [allCategories, setAllCategories] = useState<ExpenseCategory[]>([]);
-  const [itemCategoryChanges, setItemCategoryChanges] = useState<{[key: string]: string}>({});
-  const [error, setError] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<ExpenseCategory | null>(null);
 
   useEffect(() => {
     if (status === 'authenticated') {
       fetchInventories();
-      fetchAllCategories();
     }
   }, [status]);
 
@@ -229,18 +207,6 @@ export default function Items() {
       setSelectedInventories(data.map((inv: Inventory) => inv.id));
     } catch (err) {
       console.error('Failed to fetch inventories:', err);
-    }
-  };
-
-  const fetchAllCategories = async () => {
-    try {
-      const res = await fetch('/api/expense-categories');
-      if (!res.ok) throw new Error('Failed to fetch categories');
-      const data = await res.json();
-      setAllCategories(data);
-    } catch (err) {
-      console.error('Failed to fetch all categories:', err);
-      setError('Failed to load all categories. Please try again.');
     }
   };
 
@@ -277,60 +243,6 @@ export default function Items() {
       fetchInventories(); // Refresh the items list
     } catch (err) {
       console.error('Failed to delete item scraping:', err);
-    }
-  };
-
-  const handleViewCategory = async (categoryId: string, itemName: string) => {
-    try {
-      console.log('Fetching category details for:', categoryId);
-      const res = await fetch(`/api/expense-categories/${categoryId}/details`);
-      if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(`Failed to fetch category details: ${res.status} ${res.statusText}\n${errorText}`);
-      }
-      const details: CategoryDetails = await res.json();
-      console.log('Received category details:', details);
-      setSelectedCategoryDetails(details);
-      setHighlightedItem({ name: itemName });
-    } catch (error) {
-      console.error('Error fetching category details:', error);
-      setError('Failed to fetch category details. Please try again.');
-    }
-  };
-
-  const handleCategoryChange = (itemId: string, newCategoryId: string) => {
-    setItemCategoryChanges(prev => ({...prev, [itemId]: newCategoryId}));
-  };
-
-  const handleSaveCategoryChange = async (itemId: string) => {
-    try {
-      const newCategoryId = itemCategoryChanges[itemId];
-      if (!newCategoryId) return;
-
-      const res = await fetch(`/api/receipt-items/${itemId}/change-category`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newCategoryId }),
-      });
-
-      if (!res.ok) throw new Error('Failed to update item category');
-
-      // Refresh the category details
-      if (selectedCategoryDetails) {
-        await handleViewCategory(selectedCategoryDetails.id, '');
-      }
-
-      // Clear the change for this item
-      setItemCategoryChanges(prev => {
-        const newChanges = {...prev};
-        delete newChanges[itemId];
-        return newChanges;
-      });
-
-      setError('');
-    } catch (err) {
-      console.error('Failed to update item category:', err);
-      setError('Failed to update item category. Please try again.');
     }
   };
 
@@ -418,12 +330,7 @@ export default function Items() {
               <h3 className="text-lg font-semibold text-white mb-2">Regular Items</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {inventory.items.map(item => (
-                  <ItemCard 
-                    key={item.id} 
-                    item={item} 
-                    onDelete={handleDeleteItem} 
-                    onViewCategory={(categoryId) => handleViewCategory(categoryId, item.name)} 
-                  />
+                  <ItemCard key={item.id} item={item} onDelete={handleDeleteItem} onViewCategory={() => {}} />
                 ))}
               </div>
             </div>
@@ -451,99 +358,6 @@ export default function Items() {
       ))}
 
       <NewItemCard />
-
-      {/* Category Details Modal */}
-      {selectedCategoryDetails && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-          <div className="bg-white p-6 rounded-lg w-11/12 max-w-6xl text-black max-h-[90vh] overflow-y-auto">
-            <h2 className="text-2xl font-bold mb-4">{selectedCategoryDetails.name}</h2>
-            <div className="flex justify-between mb-4">
-              <p>Total Items: {selectedCategoryDetails.itemCount}</p>
-              <p>Total Cost: {selectedCategoryDetails.totalCost.toFixed(2)} NOK</p>
-            </div>
-            <h3 className="text-xl font-semibold mt-4 mb-2">Items:</h3>
-            {selectedCategoryDetails.items && selectedCategoryDetails.items.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th className="text-left p-2">Date</th>
-                      <th className="text-left p-2">Name</th>
-                      <th className="text-right p-2">Quantity</th>
-                      <th className="text-right p-2">Price</th>
-                      <th className="text-center p-2">Category</th>
-                      <th className="text-center p-2">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedCategoryDetails.items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((item) => (
-                      <tr 
-                        key={item.id} 
-                        className={`border-b ${highlightedItem && item.name === highlightedItem.name ? 'highlight-breathe' : ''}`}
-                      >
-                        <td className="p-2">{new Date(item.date).toLocaleDateString()}</td>
-                        <td className="p-2">{item.name}</td>
-                        <td className="text-right p-2">{item.quantity}</td>
-                        <td className="text-right p-2">{item.price.toFixed(2)} NOK</td>
-                        <td className="text-center p-2">
-                          <select
-                            value={itemCategoryChanges[item.id] || item.categoryId}
-                            onChange={(e) => handleCategoryChange(item.id, e.target.value)}
-                            className="border rounded p-1 text-sm w-full"
-                          >
-                            {allCategories.map((category) => (
-                              <option key={category.id} value={category.id}>
-                                {category.name}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="text-center p-2">
-                          {itemCategoryChanges[item.id] && (
-                            <button
-                              onClick={() => handleSaveCategoryChange(item.id)}
-                              className="bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded text-sm"
-                            >
-                              Save
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p>No items found for this category.</p>
-            )}
-            <button
-              onClick={() => {
-                setSelectedCategoryDetails(null);
-                setHighlightedItem(null);
-              }}
-              className="mt-4 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded w-full"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-          <span className="block sm:inline">{error}</span>
-        </div>
-      )}
-
-      <style jsx global>{`
-        @keyframes breathe {
-          0%, 100% { background-color: rgba(0, 128, 0, 0.2); }
-          50% { background-color: rgba(0, 128, 0, 0.4); }
-        }
-        .highlight-breathe {
-          animation: breathe 2s ease-in-out infinite;
-        }
-      `}</style>
     </div>
   );
 }

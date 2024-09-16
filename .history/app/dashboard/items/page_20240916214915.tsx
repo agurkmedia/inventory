@@ -100,7 +100,7 @@ function ItemCard({ item, onDelete, onViewCategory }: { item: Item, onDelete: (i
         {categories.map(category => (
           <button
             key={category!.id}
-            onClick={() => onViewCategory(category!.id, item.name)}
+            onClick={() => onViewCategory(category!.id, item.id)}
             className="text-green-400 hover:text-green-300 text-sm"
           >
             View Category
@@ -208,7 +208,7 @@ export default function Items() {
   const [searchTerm, setSearchTerm] = useState('');
   const { data: session, status } = useSession();
   const [selectedCategoryDetails, setSelectedCategoryDetails] = useState<CategoryDetails | null>(null);
-  const [highlightedItem, setHighlightedItem] = useState<{ name: string } | null>(null);
+  const [highlightedItem, setHighlightedItem] = useState<{ name: string; price: number } | null>(null);
   const [allCategories, setAllCategories] = useState<ExpenseCategory[]>([]);
   const [itemCategoryChanges, setItemCategoryChanges] = useState<{[key: string]: string}>({});
   const [error, setError] = useState('');
@@ -280,7 +280,7 @@ export default function Items() {
     }
   };
 
-  const handleViewCategory = async (categoryId: string, itemName: string) => {
+  const handleViewCategory = async (categoryId: string, itemName: string, itemPrice: number) => {
     try {
       console.log('Fetching category details for:', categoryId);
       const res = await fetch(`/api/expense-categories/${categoryId}/details`);
@@ -291,7 +291,7 @@ export default function Items() {
       const details: CategoryDetails = await res.json();
       console.log('Received category details:', details);
       setSelectedCategoryDetails(details);
-      setHighlightedItem({ name: itemName });
+      setHighlightedItem({ name: itemName, price: itemPrice });
     } catch (error) {
       console.error('Error fetching category details:', error);
       setError('Failed to fetch category details. Please try again.');
@@ -317,7 +317,7 @@ export default function Items() {
 
       // Refresh the category details
       if (selectedCategoryDetails) {
-        await handleViewCategory(selectedCategoryDetails.id, '');
+        await handleViewCategory(selectedCategoryDetails.id, '', 0);
       }
 
       // Clear the change for this item
@@ -422,7 +422,7 @@ export default function Items() {
                     key={item.id} 
                     item={item} 
                     onDelete={handleDeleteItem} 
-                    onViewCategory={(categoryId) => handleViewCategory(categoryId, item.name)} 
+                    onViewCategory={(categoryId) => handleViewCategory(categoryId, item.name, item.price)} 
                   />
                 ))}
               </div>
@@ -479,7 +479,7 @@ export default function Items() {
                     {selectedCategoryDetails.items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((item) => (
                       <tr 
                         key={item.id} 
-                        className={`border-b ${highlightedItem && item.name === highlightedItem.name ? 'highlight-breathe' : ''}`}
+                        className={`border-b ${highlightedItem && item.name === highlightedItem.name && item.price === highlightedItem.price ? 'bg-green-100' : ''}`}
                       >
                         <td className="p-2">{new Date(item.date).toLocaleDateString()}</td>
                         <td className="p-2">{item.name}</td>
@@ -537,8 +537,8 @@ export default function Items() {
 
       <style jsx global>{`
         @keyframes breathe {
-          0%, 100% { background-color: rgba(0, 128, 0, 0.2); }
-          50% { background-color: rgba(0, 128, 0, 0.4); }
+          0%, 100% { background-color: rgba(0, 255, 0, 0.1); }
+          50% { background-color: rgba(0, 255, 0, 0.2); }
         }
         .highlight-breathe {
           animation: breathe 2s ease-in-out infinite;

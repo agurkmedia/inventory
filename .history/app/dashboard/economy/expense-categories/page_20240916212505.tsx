@@ -18,7 +18,6 @@ interface ExpenseCategory {
     date: string;
     categoryId: string;
   }[];
-  highlightedItemId?: string;
 }
 
 export default function ExpenseCategories() {
@@ -139,12 +138,12 @@ export default function ExpenseCategories() {
     setSearchTerm(e.target.value);
   };
 
-  const handleViewCategory = async (category: ExpenseCategory, highlightedItemId?: string) => {
+  const handleViewCategory = async (category: ExpenseCategory) => {
     try {
       const res = await fetch(`/api/expense-categories/${category.id}/details`);
       if (!res.ok) throw new Error('Failed to fetch category details');
       const details = await res.json();
-      setSelectedCategory({...details, highlightedItemId});
+      setSelectedCategory(details);
     } catch (error) {
       console.error('Error fetching category details:', error);
       setError('Failed to fetch category details. Please try again.');
@@ -186,16 +185,6 @@ export default function ExpenseCategories() {
       setError('Failed to update item category. Please try again.');
     }
   };
-
-  const highlightStyle = `
-    @keyframes breathe {
-      0%, 100% { background-color: rgba(0, 128, 0, 0.2); }
-      50% { background-color: rgba(0, 128, 0, 0.4); }
-    }
-    .highlight-breathe {
-      animation: breathe 2s ease-in-out infinite;
-    }
-  `;
 
   if (status === 'loading') {
     return <div>Loading...</div>;
@@ -304,10 +293,7 @@ export default function ExpenseCategories() {
                 </thead>
                 <tbody>
                   {selectedCategory.items?.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((item) => (
-                    <tr 
-                      key={item.id} 
-                      className={`border-b ${item.id === selectedCategory.highlightedItemId ? 'highlight-breathe' : ''}`}
-                    >
+                    <tr key={item.id} className="border-b">
                       <td className="p-2">{new Date(item.date).toLocaleDateString()}</td>
                       <td className="p-2">{item.name}</td>
                       <td className="text-right p-2">{item.quantity}</td>
@@ -349,16 +335,6 @@ export default function ExpenseCategories() {
           </div>
         </div>
       )}
-
-      <style jsx global>{`
-        @keyframes breathe {
-          0%, 100% { background-color: rgba(0, 128, 0, 0.2); }
-          50% { background-color: rgba(0, 128, 0, 0.4); }
-        }
-        .highlight-breathe {
-          animation: breathe 2s ease-in-out infinite;
-        }
-      `}</style>
     </div>
   );
 }
