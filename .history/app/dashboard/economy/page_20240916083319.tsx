@@ -585,12 +585,12 @@ export default function EconomyAndBudget() {
       
       {/* View mode toggle */}
       <div className="flex gap-4 mb-4">
-        {([
+        {[
           { mode: 'monthly', label: 'Monthly' },
           { mode: 'yearly', label: 'Yearly' },
           { mode: 'last12months', label: 'Last 12 Months' },
           { mode: 'allTime', label: 'All Time' },
-        ] as const).map((mode) => (
+        ].map((mode) => (
           <button
             key={mode.mode}
             onClick={() => handleViewChange(mode)}
@@ -756,53 +756,16 @@ export default function EconomyAndBudget() {
                 </tbody>
               </table>
             </div>
-            {selectedExpenses.length > 0 && (
+            {accumulatedExpenses && (
               <div className="mt-4 p-4 bg-blue-500 bg-opacity-20 rounded">
-                <h4 className="text-white font-semibold mb-2">Selected Expenses</h4>
-                <table className="min-w-full text-white">
-                  <thead>
-                    <tr>
-                      <th className="px-4 py-2">Category</th>
-                      <th className="px-4 py-2">Total</th>
-                      {viewMode.mode !== 'monthly' && (
-                        <>
-                          <th className="px-4 py-2">Monthly Cost</th>
-                          <th className="px-4 py-2">Daily Cost</th>
-                        </>
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedExpenses.map((item, index) => (
-                      <tr key={index}>
-                        <td className="border px-4 py-2">{item.category}</td>
-                        <td className="border px-4 py-2">${item.amount.toFixed(2)}</td>
-                        {viewMode.mode !== 'monthly' && (
-                          <>
-                            <td className="border px-4 py-2">${item.monthlyCost.toFixed(2)}</td>
-                            <td className="border px-4 py-2">${item.dailyCost.toFixed(2)}</td>
-                          </>
-                        )}
-                      </tr>
-                    ))}
-                    <tr className="font-bold">
-                      <td className="border px-4 py-2">Total</td>
-                      <td className="border px-4 py-2">
-                        ${selectedExpenses.reduce((sum, item) => sum + item.amount, 0).toFixed(2)}
-                      </td>
-                      {viewMode.mode !== 'monthly' && (
-                        <>
-                          <td className="border px-4 py-2">
-                            ${selectedExpenses.reduce((sum, item) => sum + item.monthlyCost, 0).toFixed(2)}
-                          </td>
-                          <td className="border px-4 py-2">
-                            ${selectedExpenses.reduce((sum, item) => sum + item.dailyCost, 0).toFixed(2)}
-                          </td>
-                        </>
-                      )}
-                    </tr>
-                  </tbody>
-                </table>
+                <h4 className="text-white font-semibold mb-2">Accumulated Expenses</h4>
+                <p className="text-white">Total: ${accumulatedExpenses.amount.toFixed(2)}</p>
+                {viewMode.mode !== 'monthly' && (
+                  <>
+                    <p className="text-white">Monthly Cost: ${accumulatedExpenses.monthlyCost.toFixed(2)}</p>
+                    <p className="text-white">Daily Cost: ${accumulatedExpenses.dailyCost.toFixed(2)}</p>
+                  </>
+                )}
               </div>
             )}
           </>

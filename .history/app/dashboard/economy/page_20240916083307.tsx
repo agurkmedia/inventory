@@ -101,7 +101,8 @@ export default function EconomyAndBudget() {
   });
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
-  const [selectedExpenses, setSelectedExpenses] = useState<ExpenseItem[]>([]);
+  const [selectedExpenses, setSelectedExpenses] = useState<Set<string>>(new Set());
+  const [accumulatedExpenses, setAccumulatedExpenses] = useState<ExpenseItem | null>(null);
 
   useEffect(() => {
     if (status === 'authenticated' && !initializeRef.current) {
@@ -373,6 +374,19 @@ export default function EconomyAndBudget() {
     return <Bar data={chartData} options={options} />;
   };
 
+  const calculateAccumulatedExpenses = (selected: Set<string>, data: ExpenseItem[]) => {
+    const accumulated = data.reduce((acc, item) => {
+      if (selected.has(item.category)) {
+        acc.amount += item.amount;
+        acc.monthlyCost += item.monthlyCost;
+        acc.dailyCost += item.dailyCost;
+      }
+      return acc;
+    }, { category: 'Accumulated', amount: 0, monthlyCost: 0, dailyCost: 0 });
+
+    setAccumulatedExpenses(accumulated);
+  };
+
   const renderReceiptBreakdown = () => {
     if (!categorySummary.data || categorySummary.data.length === 0 || !categorySummary.data[0].expenses.breakdown) {
       return (
@@ -406,7 +420,8 @@ export default function EconomyAndBudget() {
           totalMonths = 12;
           break;
         case 'allTime':
-          totalDays = categorySummary.data[0].totalDays || 1;
+          // Use the totalDays and totalMonths from the API response
+          totalDays = categorySummary.data[0].totalDays || 1; // Fallback to 1 to avoid division by zero
           totalMonths = categorySummary.data[0].totalMonths || 1;
           break;
       }
@@ -418,7 +433,7 @@ export default function EconomyAndBudget() {
       }));
     }
 
-    // Sort and filter data
+    // Sort the data
     sortedData.sort((a, b) => {
       if (sortBy === 'name') {
         return sortOrder === 'asc' ? a.category.localeCompare(b.category) : b.category.localeCompare(a.category);
@@ -427,38 +442,49 @@ export default function EconomyAndBudget() {
       }
     });
 
+    // Filter out "Huslån" if checkbox is unchecked
     if (!showHuslan) {
       sortedData = sortedData.filter(item => item.category !== "Huslån");
     }
 
-    return sortedData.map((item, index) => (
-      <tr key={index} className={selectedExpenses.some(e => e.category === item.category) ? 'bg-blue-500 bg-opacity-50' : ''}>
-        <td className="border px-4 py-2">
-          <input
-            type="checkbox"
-            checked={selectedExpenses.some(e => e.category === item.category)}
-            onChange={() => {
-              setSelectedExpenses(prev => {
-                if (prev.some(e => e.category === item.category)) {
-                  return prev.filter(e => e.category !== item.category);
-                } else {
-                  return [...prev, item];
-                }
-              });
-            }}
-            className="mr-2"
-          />
-          {item.category}
-        </td>
-        <td className="border px-4 py-2">${item.amount.toFixed(2)}</td>
-        {viewMode.mode !== 'monthly' && (
-          <>
-            <td className="border px-4 py-2">${item.monthlyCost.toFixed(2)}</td>
-            <td className="border px-4 py-2">${item.dailyCost.toFixed(2)}</td>
-          </>
-        )}
-      </tr>
-    ));
+    const sortedDataWithSelection = sortedData.map(item => ({
+      ...item,
+      isSelected: selectedExpenses.has(item.category)
+    }));
+
+    return (
+      <>
+        {sortedDataWithSelection.map((item, index) => (
+          <tr key={index} className={item.isSelected ? 'bg-blue-500 bg-opacity-50' : ''}>
+            <td className="border px-4 py-2">
+              <input
+                type="checkbox"
+                checked={item.isSelected}
+                onChange={() => {
+                  const newSelected = new Set(selectedExpenses);
+                  if (item.isSelected) {
+                    newSelected.delete(item.category);
+                  } else {
+                    newSelected.add(item.category);
+                  }
+                  setSelectedExpenses(newSelected);
+                  calculateAccumulatedExpenses(newSelected, sortedData);
+                }}
+                className="mr-2"
+              />
+              {item.category}
+            </td>
+            <td className="border px-4 py-2">${item.amount.toFixed(2)}</td>
+            {viewMode.mode !== 'monthly' && (
+              <>
+                <td className="border px-4 py-2">${item.monthlyCost.toFixed(2)}</td>
+                <td className="border px-4 py-2">${item.dailyCost.toFixed(2)}</td>
+              </>
+            )}
+          </tr>
+        ))}
+      </>
+    );
   };
 
   const renderReceiptStackedBarChart = () => {
@@ -585,12 +611,12 @@ export default function EconomyAndBudget() {
       
       {/* View mode toggle */}
       <div className="flex gap-4 mb-4">
-        {([
+        {[
           { mode: 'monthly', label: 'Monthly' },
           { mode: 'yearly', label: 'Yearly' },
           { mode: 'last12months', label: 'Last 12 Months' },
           { mode: 'allTime', label: 'All Time' },
-        ] as const).map((mode) => (
+        ].map((mode) => (
           <button
             key={mode.mode}
             onClick={() => handleViewChange(mode)}
@@ -756,53 +782,16 @@ export default function EconomyAndBudget() {
                 </tbody>
               </table>
             </div>
-            {selectedExpenses.length > 0 && (
+            {accumulatedExpenses && (
               <div className="mt-4 p-4 bg-blue-500 bg-opacity-20 rounded">
-                <h4 className="text-white font-semibold mb-2">Selected Expenses</h4>
-                <table className="min-w-full text-white">
-                  <thead>
-                    <tr>
-                      <th className="px-4 py-2">Category</th>
-                      <th className="px-4 py-2">Total</th>
-                      {viewMode.mode !== 'monthly' && (
-                        <>
-                          <th className="px-4 py-2">Monthly Cost</th>
-                          <th className="px-4 py-2">Daily Cost</th>
-                        </>
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedExpenses.map((item, index) => (
-                      <tr key={index}>
-                        <td className="border px-4 py-2">{item.category}</td>
-                        <td className="border px-4 py-2">${item.amount.toFixed(2)}</td>
-                        {viewMode.mode !== 'monthly' && (
-                          <>
-                            <td className="border px-4 py-2">${item.monthlyCost.toFixed(2)}</td>
-                            <td className="border px-4 py-2">${item.dailyCost.toFixed(2)}</td>
-                          </>
-                        )}
-                      </tr>
-                    ))}
-                    <tr className="font-bold">
-                      <td className="border px-4 py-2">Total</td>
-                      <td className="border px-4 py-2">
-                        ${selectedExpenses.reduce((sum, item) => sum + item.amount, 0).toFixed(2)}
-                      </td>
-                      {viewMode.mode !== 'monthly' && (
-                        <>
-                          <td className="border px-4 py-2">
-                            ${selectedExpenses.reduce((sum, item) => sum + item.monthlyCost, 0).toFixed(2)}
-                          </td>
-                          <td className="border px-4 py-2">
-                            ${selectedExpenses.reduce((sum, item) => sum + item.dailyCost, 0).toFixed(2)}
-                          </td>
-                        </>
-                      )}
-                    </tr>
-                  </tbody>
-                </table>
+                <h4 className="text-white font-semibold mb-2">Accumulated Expenses</h4>
+                <p className="text-white">Total: ${accumulatedExpenses.amount.toFixed(2)}</p>
+                {viewMode.mode !== 'monthly' && (
+                  <>
+                    <p className="text-white">Monthly Cost: ${accumulatedExpenses.monthlyCost.toFixed(2)}</p>
+                    <p className="text-white">Daily Cost: ${accumulatedExpenses.dailyCost.toFixed(2)}</p>
+                  </>
+                )}
               </div>
             )}
           </>

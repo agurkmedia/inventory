@@ -801,8 +801,14 @@ export default function EconomyAndBudget() {
                         </>
                       )}
                     </tr>
-                  </tbody>
-                </table>
+                <h4 className="text-white font-semibold mb-2">Accumulated Expenses</h4>
+                <p className="text-white">Total: ${accumulatedExpenses.amount.toFixed(2)}</p>
+                {viewMode.mode !== 'monthly' && (
+                  <>
+                    <p className="text-white">Monthly Cost: ${accumulatedExpenses.monthlyCost.toFixed(2)}</p>
+                    <p className="text-white">Daily Cost: ${accumulatedExpenses.dailyCost.toFixed(2)}</p>
+                  </>
+                )}
               </div>
             )}
           </>
