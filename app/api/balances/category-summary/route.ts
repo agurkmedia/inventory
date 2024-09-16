@@ -2,25 +2,12 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/authOptions';
-import { addDays, addWeeks, addMonths, addYears, startOfMonth, endOfMonth, startOfYear, endOfYear, subYears } from 'date-fns';
-
-// Function to get the next recurrence date using date-fns for safer date manipulation
-function getNextRecurrenceDate(date: Date, interval: string | null): Date {
-    switch (interval) {
-        case 'DAILY':
-            return addDays(date, 1);
-        case 'WEEKLY':
-            return addWeeks(date, 1);
-        case 'MONTHLY':
-            return addMonths(date, 1);
-        case 'QUARTERLY':
-            return addMonths(date, 3);
-        case 'YEARLY':
-            return addYears(date, 1);
-        default:
-            return date;
-    }
-}
+import {
+    startOfMonth,
+    endOfMonth,
+    startOfYear,
+    endOfYear,
+} from 'date-fns';
 
 // Function to round values to two decimals
 function roundToTwoDecimals(value: number): number {
@@ -89,10 +76,10 @@ export async function GET(req: Request) {
                     earliestExpense?.date?.getTime() ?? Infinity,
                     earliestReceipt?.date?.getTime() ?? Infinity
                 ));
-                
-                // If no data found, set startDate to current date to avoid invalid date
+
+                // If no data found, set startDate to a default date
                 if (!isFinite(startDate.getTime())) {
-                    startDate = new Date();
+                    startDate = new Date(); // Or set to a default start date
                 }
 
                 endDate = new Date(); // Current date
@@ -103,126 +90,124 @@ export async function GET(req: Request) {
 
         let totalIncome = 0;
         let totalExpenses = 0;
-        let totalReceipts = 0;
         const incomeBreakdown: { [source: string]: number } = {};
         const expenseBreakdown: { [category: string]: number } = {};
-        const receiptBreakdown: { [category: string]: number } = {};
 
-        // Fetch incomes for the entire period
-        const incomes = await prisma.income.findMany({
-            where: {
-                userId: session.user?.id,
-                OR: [
-                    { date: { gte: startDate, lte: endDate }, isRecurring: false },
-                    {
-                        isRecurring: true,
-                        recurrenceInterval: { not: null },
-                        OR: [
-                            { recurrenceEnd: null },
-                            { recurrenceEnd: { gte: startDate } }
-                        ]
-                    }
-                ]
-            }
-        });
+        // Initialize categoryTotals
+        const categoryTotals: { [category: string]: { income: number; expense: number; net: number } } = {};
 
-        // Fetch expenses for the entire period
+        // Fetch and process expenses
         const expenses = await prisma.expense.findMany({
             where: {
                 userId: session.user?.id,
-                OR: [
-                    { date: { gte: startDate, lte: endDate }, isRecurring: false },
-                    {
-                        isRecurring: true,
-                        recurrenceInterval: { not: null },
-                        OR: [
-                            { recurrenceEnd: null },
-                            { recurrenceEnd: { gte: startDate } }
-                        ]
-                    }
-                ]
+                date: { gte: startDate, lte: endDate }
             },
             include: { category: true }
         });
 
-        // Fetch receipt items for the entire period
+        expenses.forEach(expense => {
+            const category = expense.category.name;
+            const amount = expense.amount; // Respect the sign
+            if (amount < 0) {
+                // Expense
+                totalExpenses += amount; // amount is negative
+                expenseBreakdown[category] = (expenseBreakdown[category] || 0) + amount; // amount is negative
+                if (!categoryTotals[category]) {
+                    categoryTotals[category] = { income: 0, expense: 0, net: 0 };
+                }
+                categoryTotals[category].expense += amount; // amount is negative
+            } else if (amount > 0) {
+                // Income (if any)
+                totalIncome += amount;
+                incomeBreakdown[category] = (incomeBreakdown[category] || 0) + amount;
+                if (!categoryTotals[category]) {
+                    categoryTotals[category] = { income: 0, expense: 0, net: 0 };
+                }
+                categoryTotals[category].income += amount;
+            }
+        });
+
+        // Fetch and process incomes
+        const incomes = await prisma.income.findMany({
+            where: {
+                userId: session.user?.id,
+                date: { gte: startDate, lte: endDate }
+            }
+        });
+
+        incomes.forEach(income => {
+            const source = income.source;
+            const amount = income.amount; // Respect the sign
+            if (amount > 0) {
+                // Income
+                totalIncome += amount;
+                incomeBreakdown[source] = (incomeBreakdown[source] || 0) + amount;
+                if (!categoryTotals[source]) {
+                    categoryTotals[source] = { income: 0, expense: 0, net: 0 };
+                }
+                categoryTotals[source].income += amount;
+            } else if (amount < 0) {
+                // Expense (if any)
+                totalExpenses += amount; // amount is negative
+                expenseBreakdown[source] = (expenseBreakdown[source] || 0) + amount;
+                if (!categoryTotals[source]) {
+                    categoryTotals[source] = { income: 0, expense: 0, net: 0 };
+                }
+                categoryTotals[source].expense += amount;
+            }
+        });
+
+        // Fetch and process receipt items
         const receiptItems = await prisma.receiptItem.findMany({
             where: {
                 receipt: {
                     userId: session.user?.id,
                 },
-                date: {
-                    gte: startDate,
-                    lte: endDate
-                }
+                date: { gte: startDate, lte: endDate }
             },
             include: { category: true }
         });
 
-        // Process incomes
-        incomes.forEach(income => {
-            let incomeDate = new Date(income.date);
-
-            if (!income.isRecurring) {
-                if (incomeDate >= startDate && incomeDate <= endDate) {
-                    totalIncome += income.amount;
-                    incomeBreakdown[income.source] = (incomeBreakdown[income.source] || 0) + income.amount;
+        receiptItems.forEach(item => {
+            const category = item.category.name;
+            const amount = item.totalPrice; // Respect the sign
+            if (amount < 0) {
+                // Expense
+                totalExpenses += amount; // amount is negative
+                expenseBreakdown[category] = (expenseBreakdown[category] || 0) + amount; // amount is negative
+                if (!categoryTotals[category]) {
+                    categoryTotals[category] = { income: 0, expense: 0, net: 0 };
                 }
-            } else {
-                while (incomeDate <= endDate) {
-                    if (incomeDate >= startDate) {
-                        totalIncome += income.amount;
-                        incomeBreakdown[income.source] = (incomeBreakdown[income.source] || 0) + income.amount;
-                    }
-                    incomeDate = getNextRecurrenceDate(incomeDate, income.recurrenceInterval);
-                    if (income.recurrenceEnd && incomeDate > income.recurrenceEnd) break;
+                categoryTotals[category].expense += amount; // amount is negative
+            } else if (amount > 0) {
+                // Income
+                totalIncome += amount;
+                incomeBreakdown[category] = (incomeBreakdown[category] || 0) + amount;
+                if (!categoryTotals[category]) {
+                    categoryTotals[category] = { income: 0, expense: 0, net: 0 };
                 }
+                categoryTotals[category].income += amount;
             }
         });
 
-        // Process expenses
-        expenses.forEach(expense => {
-            let expenseDate = new Date(expense.date);
+        // Calculate net per category
+        for (const category in categoryTotals) {
+            categoryTotals[category].net = categoryTotals[category].income + categoryTotals[category].expense; // expenses are negative
+        }
 
-            if (!expense.isRecurring) {
-                if (expenseDate >= startDate && expenseDate <= endDate) {
-                    totalExpenses += expense.amount;
-                    const categoryName = expense.category.name;
-                    expenseBreakdown[categoryName] = (expenseBreakdown[categoryName] || 0) + expense.amount;
-                }
-            } else {
-                while (expenseDate <= endDate) {
-                    if (expenseDate >= startDate) {
-                        totalExpenses += expense.amount;
-                        const categoryName = expense.category.name;
-                        expenseBreakdown[categoryName] = (expenseBreakdown[categoryName] || 0) + expense.amount;
-                    }
-                    expenseDate = getNextRecurrenceDate(expenseDate, expense.recurrenceInterval);
-                    if (expense.recurrenceEnd && expenseDate > expense.recurrenceEnd) break;
-                }
-            }
-        });
+        // Since expenses are negative, we need to adjust totalExpenses to be positive
+        const totalExpensesAbs = -totalExpenses; // Convert totalExpenses to positive
+        const totalIncomeAbs = totalIncome; // Income is positive
 
-        // Process receipt items
-        receiptItems.forEach(receiptItem => {
-            const categoryName = receiptItem.category.name;
-            totalReceipts += receiptItem.totalPrice;
-            receiptBreakdown[categoryName] = (receiptBreakdown[categoryName] || 0) + receiptItem.totalPrice;
+        // Calculate total balance
+        const totalBalance = totalIncome + totalExpenses; // expenses are negative
 
-            // Add receipt items to income or expense based on totalPrice sign
-            if (receiptItem.totalPrice > 0) {
-                totalIncome += receiptItem.totalPrice;
-                incomeBreakdown[categoryName] = (incomeBreakdown[categoryName] || 0) + receiptItem.totalPrice;
-            } else {
-                const absoluteExpense = Math.abs(receiptItem.totalPrice);
-                totalExpenses += absoluteExpense;
-                expenseBreakdown[categoryName] = (expenseBreakdown[categoryName] || 0) + absoluteExpense;
-            }
-        });
+        // Calculate totalDays and totalMonths (same as before)
+        let totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        if (totalDays <= 0) totalDays = 1; // Ensure at least one day
 
-        // Modify the aggregatedData to include totalDays and totalMonths
-        const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-        const totalMonths = Math.ceil(totalDays / 30.44); // Average days in a month
+        let totalMonths = ((endDate.getFullYear() - startDate.getFullYear()) * 12) + (endDate.getMonth() - startDate.getMonth()) + 1;
+        if (totalMonths <= 0) totalMonths = 1; // Ensure at least one month
 
         const aggregatedData = [{
             period: startDate.toISOString(),
@@ -231,18 +216,15 @@ export async function GET(req: Request) {
             totalDays,
             totalMonths,
             incomes: {
-                total: roundToTwoDecimals(totalIncome),
+                total: roundToTwoDecimals(totalIncomeAbs),
                 breakdown: incomeBreakdown,
             },
             expenses: {
-                total: roundToTwoDecimals(totalExpenses),
+                total: roundToTwoDecimals(totalExpensesAbs),
                 breakdown: expenseBreakdown,
             },
-            receipts: {
-                total: roundToTwoDecimals(totalReceipts),
-                breakdown: receiptBreakdown,
-            },
-            balance: roundToTwoDecimals(totalIncome - totalExpenses),
+            netPerCategory: categoryTotals,
+            balance: roundToTwoDecimals(totalBalance),
         }];
 
         return NextResponse.json({ mode, data: aggregatedData });

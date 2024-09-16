@@ -510,6 +510,107 @@ export default function EconomyAndBudget() {
   // Add this function to handle year navigation
   const handleYearChange = (increment: number) => {
     setSelectedMonth(prevDate => {
+  const renderReceiptStackedBarChart = () => {
+    if (!categorySummary.data || categorySummary.data.length === 0 || !categorySummary.data[0].expenses.breakdown) {
+      return <p className="text-white">No expense data available</p>;
+    }
+
+    const expenseBreakdown = categorySummary.data[0].expenses.breakdown;
+    let categories = Object.keys(expenseBreakdown);
+    let amounts = Object.values(expenseBreakdown);
+
+    // Filter out "Huslån" if checkbox is unchecked
+    if (!showHuslan) {
+      const huslanIndex = categories.indexOf("Huslån");
+      if (huslanIndex !== -1) {
+        categories = categories.filter(cat => cat !== "Huslån");
+        amounts = amounts.filter((_, index) => index !== huslanIndex);
+      }
+    }
+
+    // Sort the data
+    const sortedData = categories.map((category, index) => ({ category, amount: amounts[index] }));
+    sortedData.sort((a, b) => {
+      if (sortBy === 'name') {
+        return sortOrder === 'asc' ? a.category.localeCompare(b.category) : b.category.localeCompare(a.category);
+      } else {
+        return sortOrder === 'asc' ? a.amount - b.amount : b.amount - a.amount;
+      }
+    });
+
+    const sortedCategories = sortedData.map(item => item.category);
+    const sortedAmounts = sortedData.map(item => item.amount);
+
+    const data = {
+      labels: ['Expenses'],
+      datasets: sortedCategories.map((category, index) => ({
+        label: category,
+        data: [Math.abs(sortedAmounts[index])],
+        backgroundColor: `hsl(${index * (360 / sortedCategories.length)}, 70%, 50%)`,
+      })),
+    };
+
+    const options = {
+      responsive: true,
+      scales: {
+        x: { stacked: true, ticks: { color: 'white' } },
+        y: { stacked: true, ticks: { color: 'white' } },
+      },
+      plugins: {
+        legend: { display: true, position: 'right' as const, labels: { color: 'white' } },
+        title: {
+          display: true,
+          text: `Expense Breakdown Summary (Total: $${Math.abs(sortedAmounts.reduce((sum, val) => sum + val, 0)).toFixed(2)})`,
+          color: 'white',
+          font: { size: 16 },
+        },
+      },
+    };
+
+    return (
+      <div>
+        <div className="flex items-center mb-2 space-x-4">
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="showHuslan"
+              checked={showHuslan}
+              onChange={(e) => setShowHuslan(e.target.checked)}
+              className="mr-2"
+            />
+            <label htmlFor="showHuslan" className="text-white">Show Huslån</label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setSortBy('name')}
+              className={`px-2 py-1 rounded ${sortBy === 'name' ? 'bg-blue-600' : 'bg-blue-400'} text-white`}
+            >
+              Sort by Name
+            </button>
+            <button
+              onClick={() => setSortBy('amount')}
+              className={`px-2 py-1 rounded ${sortBy === 'amount' ? 'bg-blue-600' : 'bg-blue-400'} text-white`}
+            >
+              Sort by Amount
+            </button>
+            <button
+              onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+              className="px-2 py-1 rounded bg-blue-400 text-white"
+            >
+              {sortOrder === 'asc' ? '↑' : '↓'}
+            </button>
+          </div>
+        </div>
+        <div className="h-120">
+          <Bar data={data} options={options} />
+        </div>
+      </div>
+    );
+  };
+
+  // Add this function to handle year navigation
+  const handleYearChange = (increment: number) => {
+    setSelectedMonth(prevDate => {
       const newDate = new Date(prevDate);
       newDate.setFullYear(newDate.getFullYear() + increment);
       return newDate;
@@ -628,15 +729,15 @@ export default function EconomyAndBudget() {
         )}
       </div>
 
-      {/* New Net Income/Expense Chart Section */}
+      {/* New Expense Breakdown Chart Section */}
       <div className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-lg p-4 shadow-md">
-        <div className="flex justify-between items-center cursor-pointer" onClick={() => toggleSection('netIncomeExpenseChart')}>
-          <h3 className="text-lg font-semibold text-white">Net Income/Expense Chart</h3>
+        <div className="flex justify-between items-center cursor-pointer" onClick={() => toggleSection('expenseBreakdownChart')}>
+          <h3 className="text-lg font-semibold text-white">Expense Breakdown Chart</h3>
           <span className="text-white text-xl">
-            {collapsedSections.netIncomeExpenseChart ? '▼' : '▲'}
+            {collapsedSections.expenseBreakdownChart ? '▼' : '▲'}
           </span>
         </div>
-        {!collapsedSections.netIncomeExpenseChart && (
+        {!collapsedSections.expenseBreakdownChart && (
           <div className="mt-4">
             {renderReceiptStackedBarChart()}
           </div>
@@ -646,7 +747,7 @@ export default function EconomyAndBudget() {
       {/* Modified Expense Breakdown Section */}
       <div className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-lg p-4 shadow-md">
         <div className="flex justify-between items-center cursor-pointer" onClick={() => toggleSection('expenseBreakdown')}>
-          <h3 className="text-lg font-semibold text-white">Income/Expense Breakdown</h3>
+          <h3 className="text-lg font-semibold text-white">Expense Breakdown</h3>
           <span className="text-white text-xl">
             {collapsedSections.expenseBreakdown ? '▼' : '▲'}
           </span>
@@ -690,11 +791,13 @@ export default function EconomyAndBudget() {
                 <thead>
                   <tr>
                     <th className="px-4 py-2">Category</th>
-                    <th className="px-4 py-2">Income</th>
-                    <th className="px-4 py-2">Expense</th>
-                    <th className="px-4 py-2">Net</th>
-                    <th className="px-4 py-2">Monthly Avg</th>
-                    <th className="px-4 py-2">Daily Avg</th>
+                    <th className="px-4 py-2">Amount</th>
+                    {viewMode.mode !== 'monthly' && (
+                      <>
+                        <th className="px-4 py-2">Monthly Cost</th>
+                        <th className="px-4 py-2">Daily Cost</th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody>

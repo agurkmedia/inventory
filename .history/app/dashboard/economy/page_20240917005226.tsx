@@ -690,11 +690,13 @@ export default function EconomyAndBudget() {
                 <thead>
                   <tr>
                     <th className="px-4 py-2">Category</th>
-                    <th className="px-4 py-2">Income</th>
-                    <th className="px-4 py-2">Expense</th>
-                    <th className="px-4 py-2">Net</th>
-                    <th className="px-4 py-2">Monthly Avg</th>
-                    <th className="px-4 py-2">Daily Avg</th>
+                    <th className="px-4 py-2">Amount</th>
+                    {viewMode.mode !== 'monthly' && (
+                      <>
+                        <th className="px-4 py-2">Monthly Cost</th>
+                        <th className="px-4 py-2">Daily Cost</th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody>

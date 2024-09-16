@@ -628,15 +628,15 @@ export default function EconomyAndBudget() {
         )}
       </div>
 
-      {/* New Net Income/Expense Chart Section */}
+      {/* New Expense Breakdown Chart Section */}
       <div className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-lg p-4 shadow-md">
-        <div className="flex justify-between items-center cursor-pointer" onClick={() => toggleSection('netIncomeExpenseChart')}>
-          <h3 className="text-lg font-semibold text-white">Net Income/Expense Chart</h3>
+        <div className="flex justify-between items-center cursor-pointer" onClick={() => toggleSection('expenseBreakdownChart')}>
+          <h3 className="text-lg font-semibold text-white">Expense Breakdown Chart</h3>
           <span className="text-white text-xl">
-            {collapsedSections.netIncomeExpenseChart ? '▼' : '▲'}
+            {collapsedSections.expenseBreakdownChart ? '▼' : '▲'}
           </span>
         </div>
-        {!collapsedSections.netIncomeExpenseChart && (
+        {!collapsedSections.expenseBreakdownChart && (
           <div className="mt-4">
             {renderReceiptStackedBarChart()}
           </div>
@@ -646,7 +646,7 @@ export default function EconomyAndBudget() {
       {/* Modified Expense Breakdown Section */}
       <div className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-lg p-4 shadow-md">
         <div className="flex justify-between items-center cursor-pointer" onClick={() => toggleSection('expenseBreakdown')}>
-          <h3 className="text-lg font-semibold text-white">Income/Expense Breakdown</h3>
+          <h3 className="text-lg font-semibold text-white">Expense Breakdown</h3>
           <span className="text-white text-xl">
             {collapsedSections.expenseBreakdown ? '▼' : '▲'}
           </span>
@@ -690,11 +690,13 @@ export default function EconomyAndBudget() {
                 <thead>
                   <tr>
                     <th className="px-4 py-2">Category</th>
-                    <th className="px-4 py-2">Income</th>
-                    <th className="px-4 py-2">Expense</th>
-                    <th className="px-4 py-2">Net</th>
-                    <th className="px-4 py-2">Monthly Avg</th>
-                    <th className="px-4 py-2">Daily Avg</th>
+                    <th className="px-4 py-2">Amount</th>
+                    {viewMode.mode !== 'monthly' && (
+                      <>
+                        <th className="px-4 py-2">Monthly Cost</th>
+                        <th className="px-4 py-2">Daily Cost</th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody>

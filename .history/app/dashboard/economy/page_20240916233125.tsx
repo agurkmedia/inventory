@@ -61,13 +61,6 @@ interface CategorySummary {
     endDate?: string;
     totalDays?: number;
     totalMonths?: number;
-    netPerCategory?: {
-      [key: string]: {
-        income: number;
-        expense: number;
-        net: number;
-      };
-    };
   }>;
 }
 
@@ -343,14 +336,139 @@ export default function EconomyAndBudget() {
   };
   
 
+  const renderBarChart = (data: any, title: string, color: string) => {
+    if (!data || Object.keys(data).length === 0) {
+      return <p className="text-white">No data available for {title}</p>;
+    }
+
+    const chartData = {
+      labels: Object.keys(data),
+      datasets: [{
+        label: title,
+        data: Object.values(data),
+        backgroundColor: color,
+      }]
+    };
+
+    const options = {
+      responsive: true,
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { color: 'white' }
+        },
+        x: { ticks: { color: 'white' } }
+      },
+      plugins: {
+        legend: { labels: { color: 'white' } },
+        title: {
+          display: true,
+          text: title,
+          color: 'white',
+          font: { size: 16 }
+        }
+      }
+    };
+
+    return <Bar data={chartData} options={options} />;
+  };
+
+  const renderReceiptBreakdown = () => {
+    if (!categorySummary.data || categorySummary.data.length === 0 || !categorySummary.data[0].expenses.breakdown) {
+      return (
+        <tr>
+          <td colSpan={viewMode.mode === 'monthly' ? 2 : 4} className="border px-4 py-2 text-center">No expense data available</td>
+        </tr>
+      );
+    }
+
+    const expenseBreakdown = categorySummary.data[0].expenses.breakdown;
+    
+    let sortedData = Object.entries(expenseBreakdown).map(([category, amount]) => ({ 
+      category, 
+      amount: amount as number,
+      monthlyCost: 0,
+      dailyCost: 0
+    }));
+
+    // Calculate monthly and daily costs for non-monthly view modes
+    if (viewMode.mode !== 'monthly') {
+      let totalDays = 0;
+      let totalMonths = 0;
+
+      switch (viewMode.mode) {
+        case 'yearly':
+          totalDays = 365;
+          totalMonths = 12;
+          break;
+        case 'last12months':
+          totalDays = 365;
+          totalMonths = 12;
+          break;
+        case 'allTime':
+          totalDays = categorySummary.data[0].totalDays || 1;
+          totalMonths = categorySummary.data[0].totalMonths || 1;
+          break;
+      }
+
+      sortedData = sortedData.map(item => ({
+        ...item,
+        monthlyCost: item.amount / totalMonths,
+        dailyCost: item.amount / totalDays
+      }));
+    }
+
+    // Sort and filter data
+    sortedData.sort((a, b) => {
+      if (sortBy === 'name') {
+        return sortOrder === 'asc' ? a.category.localeCompare(b.category) : b.category.localeCompare(a.category);
+      } else {
+        return sortOrder === 'asc' ? a.amount - b.amount : b.amount - a.amount;
+      }
+    });
+
+    if (!showHuslan) {
+      sortedData = sortedData.filter(item => item.category !== "Huslån");
+    }
+
+    return sortedData.map((item, index) => (
+      <tr key={index} className={selectedExpenses.some(e => e.category === item.category) ? 'bg-blue-500 bg-opacity-50' : ''}>
+        <td className="border px-4 py-2">
+          <input
+            type="checkbox"
+            checked={selectedExpenses.some(e => e.category === item.category)}
+            onChange={() => {
+              setSelectedExpenses(prev => {
+                if (prev.some(e => e.category === item.category)) {
+                  return prev.filter(e => e.category !== item.category);
+                } else {
+                  return [...prev, item];
+                }
+              });
+            }}
+            className="mr-2"
+          />
+          {item.category}
+        </td>
+        <td className="border px-4 py-2">${item.amount.toFixed(2)}</td>
+        {viewMode.mode !== 'monthly' && (
+          <>
+            <td className="border px-4 py-2">${item.monthlyCost.toFixed(2)}</td>
+            <td className="border px-4 py-2">${item.dailyCost.toFixed(2)}</td>
+          </>
+        )}
+      </tr>
+    ));
+  };
+
   const renderReceiptStackedBarChart = () => {
-    if (!categorySummary.data || categorySummary.data.length === 0 || !categorySummary.data[0].netPerCategory) {
+    if (!categorySummary.data || categorySummary.data.length === 0 || !categorySummary.data[0].expenses.breakdown) {
       return <p className="text-white">No expense data available</p>;
     }
 
-    const netPerCategory = categorySummary.data[0].netPerCategory;
-    let categories = Object.keys(netPerCategory);
-    let amounts = categories.map(cat => netPerCategory[cat].net);
+    const expenseBreakdown = categorySummary.data[0].expenses.breakdown;
+    let categories = Object.keys(expenseBreakdown);
+    let amounts = Object.values(expenseBreakdown);
 
     // Filter out "Huslån" if checkbox is unchecked
     if (!showHuslan) {
@@ -367,7 +485,7 @@ export default function EconomyAndBudget() {
       if (sortBy === 'name') {
         return sortOrder === 'asc' ? a.category.localeCompare(b.category) : b.category.localeCompare(a.category);
       } else {
-        return sortOrder === 'asc' ? Math.abs(a.amount) - Math.abs(b.amount) : Math.abs(b.amount) - Math.abs(a.amount);
+        return sortOrder === 'asc' ? a.amount - b.amount : b.amount - a.amount;
       }
     });
 
@@ -375,30 +493,25 @@ export default function EconomyAndBudget() {
     const sortedAmounts = sortedData.map(item => item.amount);
 
     const data = {
-      labels: sortedCategories,
-      datasets: [
-        {
-          label: 'Net',
-          data: sortedAmounts,
-          backgroundColor: sortedAmounts.map((amount, index) => 
-            amount >= 0 ? `hsl(120, 70%, ${50 - (index * 30 / sortedCategories.length)}%)` 
-                        : `hsl(0, 70%, ${50 - (index * 30 / sortedCategories.length)}%)`
-          ),
-        },
-      ],
+      labels: ['Expenses'],
+      datasets: sortedCategories.map((category, index) => ({
+        label: category,
+        data: [Math.abs(sortedAmounts[index])], // Use absolute values for bar height
+        backgroundColor: `hsl(${index * (360 / sortedCategories.length)}, 70%, 50%)`,
+      })),
     };
 
     const options = {
       responsive: true,
       scales: {
-        x: { ticks: { color: 'white' } },
-        y: { ticks: { color: 'white' } },
+        x: { stacked: true, ticks: { color: 'white' } },
+        y: { stacked: true, ticks: { color: 'white' } },
       },
       plugins: {
-        legend: { display: false },
+        legend: { display: true, position: 'right' as const, labels: { color: 'white' } },
         title: {
           display: true,
-          text: `Net Income/Expense per Category (Total: $${sortedAmounts.reduce((sum, val) => sum + val, 0).toFixed(2)})`,
+          text: `Expense Breakdown Summary (Total: $${Math.abs(sortedAmounts.reduce((sum, val) => sum + val, 0)).toFixed(2)})`,
           color: 'white',
           font: { size: 16 },
         },
@@ -444,67 +557,6 @@ export default function EconomyAndBudget() {
         </div>
       </div>
     );
-  };
-
-  const renderReceiptBreakdown = () => {
-    if (!categorySummary.data || categorySummary.data.length === 0 || !categorySummary.data[0].netPerCategory) {
-      return (
-        <tr>
-          <td colSpan={5} className="border px-4 py-2 text-center">No data available</td>
-        </tr>
-      );
-    }
-
-    const netPerCategory = categorySummary.data[0].netPerCategory;
-    
-    let sortedData = Object.entries(netPerCategory).map(([category, data]) => ({ 
-      category, 
-      income: data.income,
-      expense: data.expense,
-      net: data.net,
-      monthlyCost: data.net / categorySummary.data[0].totalMonths,
-      dailyCost: data.net / categorySummary.data[0].totalDays
-    }));
-
-    // Sort and filter data
-    sortedData.sort((a, b) => {
-      if (sortBy === 'name') {
-        return sortOrder === 'asc' ? a.category.localeCompare(b.category) : b.category.localeCompare(a.category);
-      } else {
-        return sortOrder === 'asc' ? Math.abs(a.net) - Math.abs(b.net) : Math.abs(b.net) - Math.abs(a.net);
-      }
-    });
-
-    if (!showHuslan) {
-      sortedData = sortedData.filter(item => item.category !== "Huslån");
-    }
-
-    return sortedData.map((item, index) => (
-      <tr key={index} className={selectedExpenses.some(e => e.category === item.category) ? 'bg-blue-500 bg-opacity-50' : ''}>
-        <td className="border px-4 py-2">
-          <input
-            type="checkbox"
-            checked={selectedExpenses.some(e => e.category === item.category)}
-            onChange={() => {
-              setSelectedExpenses(prev => {
-                if (prev.some(e => e.category === item.category)) {
-                  return prev.filter(e => e.category !== item.category);
-                } else {
-                  return [...prev, item];
-                }
-              });
-            }}
-            className="mr-2"
-          />
-          {item.category}
-        </td>
-        <td className="border px-4 py-2">${item.income.toFixed(2)}</td>
-        <td className="border px-4 py-2">${Math.abs(item.expense).toFixed(2)}</td>
-        <td className="border px-4 py-2">${item.net.toFixed(2)}</td>
-        <td className="border px-4 py-2">${item.monthlyCost.toFixed(2)}</td>
-        <td className="border px-4 py-2">${item.dailyCost.toFixed(2)}</td>
-      </tr>
-    ));
   };
 
   // Add this function to handle year navigation
@@ -628,15 +680,15 @@ export default function EconomyAndBudget() {
         )}
       </div>
 
-      {/* New Net Income/Expense Chart Section */}
+      {/* New Expense Breakdown Chart Section */}
       <div className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-lg p-4 shadow-md">
-        <div className="flex justify-between items-center cursor-pointer" onClick={() => toggleSection('netIncomeExpenseChart')}>
-          <h3 className="text-lg font-semibold text-white">Net Income/Expense Chart</h3>
+        <div className="flex justify-between items-center cursor-pointer" onClick={() => toggleSection('expenseBreakdownChart')}>
+          <h3 className="text-lg font-semibold text-white">Expense Breakdown Chart</h3>
           <span className="text-white text-xl">
-            {collapsedSections.netIncomeExpenseChart ? '▼' : '▲'}
+            {collapsedSections.expenseBreakdownChart ? '▼' : '▲'}
           </span>
         </div>
-        {!collapsedSections.netIncomeExpenseChart && (
+        {!collapsedSections.expenseBreakdownChart && (
           <div className="mt-4">
             {renderReceiptStackedBarChart()}
           </div>
@@ -646,7 +698,7 @@ export default function EconomyAndBudget() {
       {/* Modified Expense Breakdown Section */}
       <div className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-lg p-4 shadow-md">
         <div className="flex justify-between items-center cursor-pointer" onClick={() => toggleSection('expenseBreakdown')}>
-          <h3 className="text-lg font-semibold text-white">Income/Expense Breakdown</h3>
+          <h3 className="text-lg font-semibold text-white">Expense Breakdown</h3>
           <span className="text-white text-xl">
             {collapsedSections.expenseBreakdown ? '▼' : '▲'}
           </span>
@@ -690,11 +742,13 @@ export default function EconomyAndBudget() {
                 <thead>
                   <tr>
                     <th className="px-4 py-2">Category</th>
-                    <th className="px-4 py-2">Income</th>
-                    <th className="px-4 py-2">Expense</th>
-                    <th className="px-4 py-2">Net</th>
-                    <th className="px-4 py-2">Monthly Avg</th>
-                    <th className="px-4 py-2">Daily Avg</th>
+                    <th className="px-4 py-2">Amount</th>
+                    {viewMode.mode !== 'monthly' && (
+                      <>
+                        <th className="px-4 py-2">Monthly Cost</th>
+                        <th className="px-4 py-2">Daily Cost</th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
