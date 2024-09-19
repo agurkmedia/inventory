@@ -6,7 +6,6 @@ import { createWorker } from 'tesseract.js';
 import os from 'os';
 import pdf2img from 'pdf-img-convert';
 import { cpus } from 'os';
-import path from 'path';
 
 export const config = {
   api: {
@@ -128,33 +127,25 @@ export default async function processPDF(req: NextApiRequest, res: NextApiRespon
 
 // Helper function to parse the form data using formidable
 function parseForm(
-    req: NextApiRequest
-  ): Promise<{ fields: formidable.Fields; files: formidable.Files }> {
-    return new Promise((resolve, reject) => {
-      const uploadDir = path.join(process.cwd(), 'temp_uploads');
-
-      // Ensure the directory exists
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
-
-      const form = formidable({
-        uploadDir: uploadDir,
-        keepExtensions: true,
-        multiples: true, // Allow multiple file uploads
-      });
-
-      form.parse(req, (err, fields, files) => {
-        if (err) {
-          console.error('Error parsing form data:', err);
-          reject(err);
-        } else {
-          resolve({ fields, files });
-        }
-      });
+  req: NextApiRequest
+): Promise<{ fields: formidable.Fields; files: formidable.Files }> {
+  return new Promise((resolve, reject) => {
+    const form = formidable({
+      uploadDir: os.tmpdir(),
+      keepExtensions: true,
+      multiples: true, // Allow multiple file uploads
     });
-  }
 
+    form.parse(req, (err, fields, files) => {
+      if (err) {
+        console.error('Error parsing form data:', err);
+        reject(err);
+      } else {
+        resolve({ fields, files });
+      }
+    });
+  });
+}
 
 // Define the ParsedTransaction interface
 interface ParsedTransaction {

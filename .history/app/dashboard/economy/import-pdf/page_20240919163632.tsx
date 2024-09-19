@@ -345,9 +345,9 @@ export default function ImportPDF() {
       const grouped = groupTransactionsByKeyword(allParsedTransactions, keywordMap);
       setGroupedTransactions(grouped);
       console.log('Grouped Transactions State:', grouped);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error during file submission:', error);
-      alert(`Error during file submission: ${error.message}`);
+      // Handle error appropriately
     } finally {
       setLoading(false);
       console.log('Loading state set to false.');
