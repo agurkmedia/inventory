@@ -90,7 +90,7 @@ export default async function processPDF(req: NextApiRequest, res: NextApiRespon
               langPath: path.resolve('./tessdata'), // Use local language data if available
             });
             await worker.loadLanguage('nor');
-            await worker.initialize('nor');
+            await worker.initialize('eng');
             workers.push(worker);
             console.log(`Worker ${i} initialized.`);
           } catch (error) {
