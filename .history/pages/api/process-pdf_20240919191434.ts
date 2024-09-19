@@ -86,10 +86,10 @@ export default async function processPDF(req: NextApiRequest, res: NextApiRespon
         for (let i = 0; i < maxWorkers; i++) {
           try {
             const worker = await createWorker({
-              logger: (m) => console.log(`Worker ${i}:`, m), // Set logger here
+              logger: (m) => console.log(`Worker ${i}:`, m),
               langPath: path.resolve('./tessdata'), // Use local language data if available
             });
-            await worker.loadLanguage('eng');
+            await worker.loadLanguage('nor');
             await worker.initialize('eng');
             workers.push(worker);
             console.log(`Worker ${i} initialized.`);
@@ -197,10 +197,11 @@ async function processImageWithWorker(
   try {
     const worker = workers[workerIndex];
     console.log(`Worker ${workerIndex} started processing an image.`);
-    // Remove logger from recognize options
     const {
       data: { text },
-    } = await worker.recognize(imageBuffer);
+    } = await worker.recognize(imageBuffer, {
+      logger: (m) => console.log(`Worker ${workerIndex}:`, m),
+    });
     console.log(`Worker ${workerIndex} finished processing an image.`);
     return text;
   } catch (error) {
