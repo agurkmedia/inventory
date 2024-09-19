@@ -1,0 +1,525 @@
+'use client';
+
+import React, { useState, useEffect, useMemo } from 'react';
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
+import Tesseract from 'tesseract.js';
+import { v4 as uuidv4 } from 'uuid';
+
+// Set the workerSrc property to use the correct version
+GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.3.122/pdf.worker.min.js`;
+
+interface Transaction {
+  date: string;
+  description: string;
+  out: string;
+  in: string;
+}
+
+interface ParsedTransaction {
+  date: string;
+  description: string;
+  amount: number;
+}
+
+interface KeywordMapping {
+  id: string;
+  keyword: string;
+  description: string;
+}
+
+export default function ImportPDF() {
+  const [file, setFile] = useState<File | null>(null);
+  const [text, setText] = useState('');
+  const [method, setMethod] = useState<'pdf' | 'ocr'>('pdf');
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [parsedTransactions, setParsedTransactions] = useState<ParsedTransaction[]>([]);
+  const [groupedTransactions, setGroupedTransactions] = useState<any>({});
+  const [keywordMappings, setKeywordMappings] = useState<KeywordMapping[]>([]);
+  const [collapsedGroups, setCollapsedGroups] = useState<{ [key: string]: boolean }>({});
+
+  // State variables for managing keyword mappings
+  const [newKeyword, setNewKeyword] = useState('');
+  const [newDescription, setNewDescription] = useState('');
+  const [editingMapping, setEditingMapping] = useState<KeywordMapping | null>(null);
+  const [showKeywordMappings, setShowKeywordMappings] = useState(true);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setFile(e.target.files[0]);
+    }
+  };
+
+  const extractTextFromPDF = async (file: File) => {
+    const reader = new FileReader();
+    reader.readAsArrayBuffer(file);
+    reader.onload = async () => {
+      const arrayBuffer = reader.result as ArrayBuffer;
+      const loadingTask = getDocument({ data: arrayBuffer });
+      const pdf = await loadingTask.promise;
+      let extractedText = '';
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const content = await page.getTextContent();
+        const strings = content.items.map((item: any) => item.str);
+        extractedText += strings.join(' ') + '\n';
+      }
+      setText(extractedText);
+      parseText(extractedText);
+    };
+  };
+
+  const extractTextUsingOCR = async (file: File) => {
+    setLoading(true);
+    const reader = new FileReader();
+    reader.readAsArrayBuffer(file);
+    reader.onload = async () => {
+      const arrayBuffer = reader.result as ArrayBuffer;
+      const loadingTask = getDocument({ data: arrayBuffer });
+      const pdf = await loadingTask.promise;
+
+      let extractedText = '';
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const viewport = page.getViewport({ scale: 2 });
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        const renderContext = {
+          canvasContext: context!,
+          viewport: viewport,
+        };
+
+        await page.render(renderContext).promise;
+
+        const dataURL = canvas.toDataURL('image/png');
+
+        const { data } = await Tesseract.recognize(dataURL, 'eng');
+
+        extractedText += data.text + '\n';
+      }
+      setText(extractedText);
+      parseText(extractedText);
+      setLoading(false);
+    };
+  };
+
+  const parseText = (text: string) => {
+    const lines = text.split('\n');
+    const transactions: Transaction[] = [];
+
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i].trim();
+      const dateMatch = line.match(/^\d{2}\.\d{2}(?:\.\d{2,4})?/); // Matches dates like 29.08 or 29.08.14
+      if (dateMatch) {
+        let date = dateMatch[0];
+        let description = line.substring(date.length).trim();
+        i++;
+        while (
+          i < lines.length &&
+          !lines[i].trim().match(/^\d{2}\.\d{2}(?:\.\d{2,4})?/) &&
+          !lines[i].trim().match(/^\d+,\d{2}$/)
+        ) {
+          description += ' ' + lines[i].trim();
+          i++;
+        }
+        let outAmount = '';
+        let inAmount = '';
+        if (i < lines.length) {
+          const amountLine = lines[i].trim();
+          const amounts = amountLine.match(/(\d+,\d{2})/g);
+          if (amounts) {
+            if (amounts.length === 1) {
+              outAmount = amounts[0];
+            } else if (amounts.length >= 2) {
+              outAmount = amounts[0];
+              inAmount = amounts[1];
+            }
+            i++;
+          }
+        }
+        transactions.push({
+          date,
+          description,
+          out: outAmount,
+          in: inAmount,
+        });
+      } else {
+        i++;
+      }
+    }
+
+    setTransactions(transactions);
+
+    const parsed: ParsedTransaction[] = transactions.map((t) => ({
+      date: t.date,
+      description: t.description,
+      amount:
+        (parseFloat(t.in.replace(',', '.')) || 0) - (parseFloat(t.out.replace(',', '.')) || 0),
+    }));
+
+    setParsedTransactions(parsed);
+  };
+
+  // Create a keyword map from keywordMappings
+  const keywordMap = useMemo(() => {
+    return keywordMappings.reduce((acc, mapping) => {
+      acc[mapping.keyword.toLowerCase()] = mapping.description;
+      return acc;
+    }, {} as { [key: string]: string });
+  }, [keywordMappings]);
+
+  // Update grouped transactions when parsedTransactions or keywordMap changes
+  useEffect(() => {
+    if (parsedTransactions.length > 0) {
+      const grouped = groupTransactionsByKeyword(parsedTransactions, keywordMap);
+      setGroupedTransactions(grouped);
+    }
+  }, [parsedTransactions, keywordMap]);
+
+  const groupTransactionsByKeyword = (
+    transactions: ParsedTransaction[],
+    keywordMap: { [key: string]: string }
+  ) => {
+    return transactions.reduce((groups: any, transaction) => {
+      let groupKey = 'Other';
+      for (const keyword in keywordMap) {
+        if (transaction.description.toLowerCase().includes(keyword.toLowerCase())) {
+          groupKey = keywordMap[keyword];
+          break;
+        }
+      }
+
+      if (!groups[groupKey]) {
+        groups[groupKey] = {
+          description: groupKey,
+          totalAmount: 0,
+          transactions: [],
+        };
+      }
+
+      groups[groupKey].transactions.push(transaction);
+      groups[groupKey].totalAmount += transaction.amount;
+
+      return groups;
+    }, {});
+  };
+
+  const toggleGroupCollapse = (groupKey: string) => {
+    setCollapsedGroups((prev) => ({
+      ...prev,
+      [groupKey]: !prev[groupKey],
+    }));
+  };
+
+  const handleAddKeywordMapping = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const newMapping = { id: uuidv4(), keyword: newKeyword, description: newDescription };
+      setKeywordMappings([...keywordMappings, newMapping]);
+      setNewKeyword('');
+      setNewDescription('');
+    } catch (err) {
+      console.error('Failed to add keyword mapping:', err);
+    }
+  };
+
+  const handleEditKeywordMapping = (mapping: KeywordMapping) => {
+    setEditingMapping(mapping);
+    setNewKeyword(mapping.keyword);
+    setNewDescription(mapping.description);
+  };
+
+  const handleUpdateKeywordMapping = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingMapping) return;
+
+    try {
+      const updatedMappings = keywordMappings.map(mapping =>
+        mapping.id === editingMapping.id
+          ? { ...mapping, keyword: newKeyword, description: newDescription }
+          : mapping
+      );
+      setKeywordMappings(updatedMappings);
+      setEditingMapping(null);
+      setNewKeyword('');
+      setNewDescription('');
+    } catch (err) {
+      console.error('Failed to update keyword mapping:', err);
+    }
+  };
+
+  const handleDeleteKeywordMapping = async (id: string) => {
+    if (editingMappingId) {
+      // Editing existing mapping
+      setKeywordMappings((prev) =>
+        prev.map((mapping) =>
+          mapping.id === editingMappingId
+            ? { ...mapping, keyword: newKeyword, description: newDescription }
+            : mapping
+        )
+      );
+      setEditingMappingId(null);
+    } else {
+      // Adding new mapping
+      setKeywordMappings((prev) => [
+        ...prev,
+        {
+          id: uuidv4(),
+          keyword: newKeyword,
+          description: newDescription,
+        },
+      ]);
+    }
+
+    setNewKeyword('');
+    setNewDescription('');
+  };
+
+  const handleEditMapping = (id: string) => {
+    const mappingToEdit = keywordMappings.find((mapping) => mapping.id === id);
+    if (mappingToEdit) {
+      setEditingMappingId(id);
+      setNewKeyword(mappingToEdit.keyword);
+      setNewDescription(mappingToEdit.description);
+    }
+  };
+
+  const handleDeleteMapping = (id: string) => {
+    setKeywordMappings((prev) => prev.filter((mapping) => mapping.id !== id));
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMappingId(null);
+    setNewKeyword('');
+    setNewDescription('');
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!file) return;
+    if (method === 'pdf') {
+      extractTextFromPDF(file);
+    } else if (method === 'ocr') {
+      extractTextUsingOCR(file);
+    }
+  };
+
+  return (
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">Import PDF</h1>
+      <form onSubmit={handleSubmit} className="mb-4">
+        <div className="mb-4">
+          <label htmlFor="file" className="block text-sm font-medium text-gray-700">
+            Select PDF file
+          </label>
+          <input
+            type="file"
+            id="file"
+            accept=".pdf"
+            onChange={handleFileChange}
+            className="mt-1 block w-full text-sm text-gray-500
+                      file:mr-4 file:py-2 file:px-4
+                      file:rounded-full file:border-0
+                      file:text-sm file:font-semibold
+                      file:bg-violet-50 file:text-violet-700
+                      hover:file:bg-violet-100"
+          />
+        </div>
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700">Import Method</label>
+          <div>
+            <label className="inline-flex items-center mr-4">
+              <input
+                type="radio"
+                value="pdf"
+                checked={method === 'pdf'}
+                onChange={() => setMethod('pdf')}
+                className="form-radio"
+              />
+              <span className="ml-2">PDF Parsing</span>
+            </label>
+            <label className="inline-flex items-center">
+              <input
+                type="radio"
+                value="ocr"
+                checked={method === 'ocr'}
+                onChange={() => setMethod('ocr')}
+                className="form-radio"
+              />
+              <span className="ml-2">OCR Processing</span>
+            </label>
+          </div>
+        </div>
+        <button
+          type="submit"
+          disabled={!file || loading}
+          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+        >
+          {loading ? 'Processing...' : 'Extract Text'}
+        </button>
+      </form>
+      {loading && <p>Processing...</p>}
+      {text && (
+        <div className="mb-4">
+          <h2 className="text-xl font-bold mb-2">Extracted Text</h2>
+          <pre className="whitespace-pre-wrap">{text}</pre>
+        </div>
+      )}
+
+      {/* Keyword Mappings Section */}
+      {transactions.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-xl font-semibold mb-4">Keyword Mappings</h2>
+          <table className="min-w-full bg-gray-800 rounded-lg overflow-hidden">
+            <thead className="bg-blue-600 text-white">
+              <tr>
+                <th className="px-4 py-2">Keyword</th>
+                <th className="px-4 py-2">Group Name</th>
+                <th className="px-4 py-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {keywordMappings.map((mapping) => (
+                <tr key={mapping.id} className="text-white">
+                  <td className="border px-4 py-2">{mapping.keyword}</td>
+                  <td className="border px-4 py-2">{mapping.description}</td>
+                  <td className="border px-4 py-2">
+                    <button
+                      onClick={() => handleEditMapping(mapping.id)}
+                      className="bg-yellow-500 text-white px-2 py-1 rounded mr-2"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDeleteMapping(mapping.id)}
+                      className="bg-red-500 text-white px-2 py-1 rounded"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <div className="mt-4">
+            <h3 className="text-lg font-semibold mb-2">
+              {editingMappingId ? 'Edit Keyword Mapping' : 'Add New Keyword Mapping'}
+            </h3>
+            <form onSubmit={handleAddMapping}>
+              <div className="flex">
+                <input
+                  type="text"
+                  placeholder="Keyword"
+                  value={newKeyword}
+                  onChange={(e) => setNewKeyword(e.target.value)}
+                  className="mr-2 p-2 border rounded"
+                />
+                <input
+                  type="text"
+                  placeholder="Group Name"
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                  className="mr-2 p-2 border rounded"
+                />
+                <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">
+                  {editingMappingId ? 'Update' : 'Add'}
+                </button>
+                {editingMappingId && (
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    className="ml-2 bg-gray-500 text-white px-4 py-2 rounded"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Grouped Transactions Section */}
+      {Object.keys(groupedTransactions).length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-xl font-semibold mb-4">Grouped Transactions</h2>
+          {Object.keys(groupedTransactions).map((groupKey) => (
+            <div key={groupKey} className="bg-white bg-opacity-10 p-4 rounded-lg mb-4">
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="text-lg font-bold text-white">
+                  {groupedTransactions[groupKey].description}
+                </h3>
+                <button
+                  onClick={() => toggleGroupCollapse(groupKey)}
+                  className="text-white hover:text-gray-300"
+                >
+                  {collapsedGroups[groupKey] ? 'Expand' : 'Collapse'}
+                </button>
+              </div>
+              <p className="text-gray-300 mb-2">
+                Total Amount: {groupedTransactions[groupKey].totalAmount.toFixed(2)} NOK
+              </p>
+
+              {!collapsedGroups[groupKey] && (
+                <table className="min-w-full bg-gray-800 rounded-lg overflow-hidden">
+                  <thead className="bg-blue-600 text-white">
+                    <tr>
+                      <th className="px-4 py-2">Date</th>
+                      <th className="px-4 py-2">Description</th>
+                      <th className="px-4 py-2">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groupedTransactions[groupKey].transactions.map(
+                      (transaction: ParsedTransaction, index: number) => (
+                        <tr key={index} className="text-white">
+                          <td className="border px-4 py-2">{transaction.date}</td>
+                          <td className="border px-4 py-2">{transaction.description}</td>
+                          <td className="border px-4 py-2">
+                            {transaction.amount.toFixed(2)} NOK
+                          </td>
+                        </tr>
+                      )
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Original Transactions Table */}
+      {transactions.length > 0 && (
+        <div>
+          <h2 className="text-xl font-bold mb-2">Extracted Transactions</h2>
+          <table className="w-full border-collapse border border-gray-300">
+            <thead>
+              <tr className="bg-white">
+                <th className="border border-gray-300 px-4 py-2 text-black">Date</th>
+                <th className="border border-gray-300 px-4 py-2 text-black">Description</th>
+                <th className="border border-gray-300 px-4 py-2 text-black">Ut av konto</th>
+                <th className="border border-gray-300 px-4 py-2 text-black">Inn på konto</th>
+              </tr>
+            </thead>
+            <tbody>
+              {transactions.map((transaction, index) => (
+                <tr key={index}>
+                  <td className="border border-gray-300 px-4 py-2">{transaction.date}</td>
+                  <td className="border border-gray-300 px-4 py-2">{transaction.description}</td>
+                  <td className="border border-gray-300 px-4 py-2">{transaction.out}</td>
+                  <td className="border border-gray-300 px-4 py-2">{transaction.in}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
