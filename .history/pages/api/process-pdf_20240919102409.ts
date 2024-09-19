@@ -63,8 +63,9 @@ export default async function processPDF(req: NextApiRequest, res: NextApiRespon
           // Create an array of workers
           const workers = [];
           for (let i = 0; i < maxWorkers; i++) {
-            const worker = await createWorker();
-            await worker.loadLanguage('nor');
+            const worker = await createWorker(); // Await the worker creation
+            await worker.load();
+            await worker.loadLanguage('nor'); // Pass 'nor' as a string
             await worker.initialize('nor');
             workers.push(worker);
           }
